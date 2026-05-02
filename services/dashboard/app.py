@@ -316,6 +316,7 @@ with col2:
 
 with col3:
     active_servers = len(servers) if servers else 3
+    current_rps = orch_status.get('traffic_intensity', 100) if orch_status else 100
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value">{active_servers}</div>
@@ -323,7 +324,7 @@ with col3:
         <div class="metric-delta" style="color: var(--text-secondary);">
             All healthy
         </div>
-        <div style="font-size: 0.65rem; color: #30d158; margin-top: 4px;">↑ Uptime: 100%</div>
+        <div style="font-size: 0.65rem; color: #0a84ff; margin-top: 4px;">⚡ {current_rps} RPS</div>
     </div>
     """, unsafe_allow_html=True)
 
