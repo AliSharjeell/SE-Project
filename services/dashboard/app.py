@@ -275,13 +275,17 @@ col1, col2, col3, col4 = st.columns(4)
 total_req = stats.get('total_requests', 0) or random.randint(10000, 50000)
 req_delta = stats.get('requests_delta', 0) or round(random.uniform(-5, 15), 1)
 
+# Get current routing strategy from orchestrator
+current_strategy = orch_status.get('routing_strategy', 'round_robin') if orch_status else 'round_robin'
+strategy_display = current_strategy.replace('_', ' ').title()
+
 with col1:
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{total_req:,}</div>
-        <div class="metric-label">Total Requests</div>
-        <div class="metric-delta" style="color: {'#30d158' if req_delta > 0 else '#ff453a'};">
-            {'+' if req_delta > 0 else ''}{req_delta}%
+        <div class="metric-value" style="font-size: 1.2rem;">{strategy_display}</div>
+        <div class="metric-label">Active Strategy</div>
+        <div class="metric-delta" style="color: var(--accent);">
+            AI-Powered
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -345,6 +349,9 @@ with chart_col:
     fig_lat.add_trace(go.Scatter(x=perf_data['time'], y=perf_data['latency_p50'], name='P50', line=dict(color='#30d158', width=2)))
     fig_lat.add_trace(go.Scatter(x=perf_data['time'], y=perf_data['latency_p95'], name='P95', line=dict(color='#0a84ff', width=2)))
     fig_lat.add_trace(go.Scatter(x=perf_data['time'], y=perf_data['latency_p99'], name='P99', line=dict(color='#ff453a', width=2)))
+    fig_lat.add_hline(y=200, line_dash="dash", line_color="#ff453a", line_width=1.5,
+                      annotation_text="Danger: 200ms", annotation_position="top right",
+                      annotation_font_color="#ff453a", annotation_font_size=10)
     fig_lat.update_layout(
         paper_bgcolor='white', plot_bgcolor='white',
         font=dict(color='#ffffff', family='Inter'),
@@ -375,35 +382,40 @@ with chart_col:
 with server_col:
     st.markdown("#### Server Health")
 
-    # Server data
-    if servers:
-        server_list = servers
-    else:
-        server_list = [
-            {'server_id': 'backend-1', 'healthy': True},
-            {'server_id': 'backend-2', 'healthy': True},
-            {'server_id': 'backend-3', 'healthy': True},
-        ]
+    # Use scrollable container for server health
+    with st.container(height=400):
+        # Server data
+        if servers:
+            server_list = servers
+        else:
+            server_list = [
+                {'server_id': 'backend-1', 'healthy': True},
+                {'server_id': 'backend-2', 'healthy': True},
+                {'server_id': 'backend-3', 'healthy': True},
+            ]
 
-    for server in server_list:
-        cpu = random.randint(20, 75)
-        dot_class = 'dot-green' if cpu < 70 else 'dot-yellow' if cpu < 85 else 'dot-red'
+        for server in server_list:
+            cpu = random.randint(20, 75)
+            dot_class = 'dot-green' if cpu < 70 else 'dot-yellow' if cpu < 85 else 'dot-red'
+            threshold_color = '#ff453a' if cpu >= 80 else '#ff9f0a' if cpu >= 70 else '#30d158'
 
-        st.markdown(f"""
-        <div class="server-bar">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                <span style="font-weight: 600; font-size: 0.85rem;">{server['server_id']}</span>
-                <span class="status-dot {dot_class}"></span>
+            st.markdown(f"""
+            <div class="server-bar">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                    <span style="font-weight: 600; font-size: 0.85rem;">{server['server_id']}</span>
+                    <span class="status-dot {dot_class}"></span>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: var(--text-secondary); font-size: 0.75rem;">CPU Usage</span>
+                    <span style="font-weight: 600; font-size: 0.9rem;">{cpu}%</span>
+                </div>
+                <div style="background: var(--bg-tertiary); border-radius: 4px; height: 6px; margin-top: 0.5rem; position: relative;">
+                    <div style="background: {threshold_color}; width: {cpu}%; height: 100%; border-radius: 4px;"></div>
+                    <div style="position: absolute; right: 80%; top: -2px; bottom: -2px; width: 1px; background: rgba(255,69,58,0.5);"></div>
+                </div>
+                <div style="text-align: right; font-size: 0.65rem; color: rgba(255,69,58,0.6); margin-top: 2px;">80% threshold</div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span style="color: var(--text-secondary); font-size: 0.75rem;">CPU Usage</span>
-                <span style="font-weight: 600; font-size: 0.9rem;">{cpu}%</span>
-            </div>
-            <div style="background: var(--bg-tertiary); border-radius: 4px; height: 6px; margin-top: 0.5rem;">
-                <div style="background: {'#30d158' if cpu < 70 else '#ff9f0a' if cpu < 85 else '#ff453a'}; width: {cpu}%; height: 100%; border-radius: 4px;"></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
 
 # ============================================
 # ROW 3: Predictions & Anomalies
