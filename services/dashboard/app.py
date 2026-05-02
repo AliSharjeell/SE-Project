@@ -561,18 +561,22 @@ with st.sidebar:
 
         # Stack buttons vertically for clean alignment
         if st.button("Black Friday Rush", use_container_width=True, key="bf_preset"):
-            if set_traffic("ramp", 10000):
-                show_toast("Black Friday Rush activated - 10,000 RPS ramp")
+            # Aggressive ramp: spike to 12000 RPS
+            if set_traffic("spike", 12000):
+                show_toast("Black Friday Rush - 12,000 RPS spike!")
             else:
-                show_toast("Traffic pattern: RAMP → 10,000 RPS", "📈")
+                show_toast("Traffic: SPIKE → 12,000 RPS", "📈")
+            st.rerun()
 
         if st.button("DDoS Attack", use_container_width=True, key="ddos_preset"):
-            set_traffic("spike", 8000)
+            # Violent DDoS: 10000 RPS burst + chaos injection
+            set_traffic("burst", 10000)
             chaos_result = inject_chaos()
             if chaos_result and chaos_result.get('success'):
                 show_toast(f"Container {chaos_result.get('container_killed')} killed!", "💥")
             else:
-                show_toast("DDoS simulation + chaos injection", "⚠️")
+                show_toast("DDoS: 10,000 RPS + chaos injection", "⚠️")
+            st.rerun()
 
         if st.button("Normal Ops", use_container_width=True, key="normal_preset"):
             if set_traffic("constant", 100):
