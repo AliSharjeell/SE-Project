@@ -22,7 +22,9 @@ def get_docker_client():
     global _docker_client
     if _docker_client is None:
         import docker
-        _docker_client = docker.from_env()
+        import os
+        # Use explicit socket path
+        _docker_client = docker.DockerClient(base_url='unix:///var/run/docker.sock')
     return _docker_client
 
 # State
