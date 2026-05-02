@@ -288,7 +288,7 @@ total_req = stats.get('total_requests', 0) or random.randint(10000, 50000)
 req_delta = stats.get('requests_delta', 0) or round(random.uniform(-5, 15), 1)
 
 # Get current routing strategy from orchestrator
-current_strategy = orch_status.get('routing_strategy', 'round_robin') if orch_status else 'round_robin'
+current_strategy = orch_status.get('routing_strategy', 'ai_powered') if orch_status else 'ai_powered'
 strategy_display = current_strategy.replace('_', ' ').title()
 
 with col1:
@@ -595,7 +595,7 @@ with st.sidebar:
 
         # Strategy selector buttons in presets
         if 'current_strategy' not in st.session_state:
-            st.session_state.current_strategy = 'round_robin'
+            st.session_state.current_strategy = 'ai_powered'
 
         strat_cols = st.columns(2)
         with strat_cols[0]:
