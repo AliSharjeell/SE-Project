@@ -591,6 +591,51 @@ with st.sidebar:
                 show_toast("Traffic: SINE_WAVE → 500 RPS", "〰️")
 
         st.markdown("---")
+        st.markdown("#### Routing Strategy")
+
+        # Strategy selector buttons in presets
+        if 'current_strategy' not in st.session_state:
+            st.session_state.current_strategy = 'round_robin'
+
+        strat_cols = st.columns(2)
+        with strat_cols[0]:
+            if st.button("🔄 Round Robin", use_container_width=True,
+                         type="primary" if st.session_state.get('current_strategy') == 'round_robin' else "secondary",
+                         key="strat_rr"):
+                set_strategy("round_robin")
+                st.session_state.current_strategy = 'round_robin'
+                show_toast("Round Robin - Even Distribution")
+                st.rerun()
+
+        with strat_cols[1]:
+            if st.button("⚡ Least Conn", use_container_width=True,
+                         type="primary" if st.session_state.get('current_strategy') == 'least_connections' else "secondary",
+                         key="strat_lc"):
+                set_strategy("least_connections")
+                st.session_state.current_strategy = 'least_connections'
+                show_toast("Least Connections - Smart Routing")
+                st.rerun()
+
+        strat_cols2 = st.columns(2)
+        with strat_cols2[0]:
+            if st.button("🤖 AI-Powered", use_container_width=True,
+                         type="primary" if st.session_state.get('current_strategy') == 'ai_powered' else "secondary",
+                         key="strat_ai"):
+                set_strategy("ai_powered")
+                st.session_state.current_strategy = 'ai_powered'
+                show_toast("AI-Powered - ML-Based Routing")
+                st.rerun()
+
+        with strat_cols2[1]:
+            if st.button("🚫 OFF", use_container_width=True,
+                         type="primary" if st.session_state.get('current_strategy') == 'off' else "secondary",
+                         key="strat_off"):
+                set_strategy("off")
+                st.session_state.current_strategy = 'off'
+                show_toast("OFF - No Load Balancing")
+                st.rerun()
+
+        st.markdown("---")
         st.markdown("#### Chaos Engineering")
         if st.button("Kill Random Server", use_container_width=True, key="chaos_sidebar", type="primary"):
             result = inject_chaos()
