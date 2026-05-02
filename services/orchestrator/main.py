@@ -236,6 +236,27 @@ async def health():
     return {"status": "healthy", "service": "orchestrator"}
 
 
+@app.get("/api/debug")
+async def debug_info():
+    """Debug endpoint for Docker connection status."""
+    import sys
+    client = get_docker_client()
+    if client:
+        try:
+            client.ping()
+            containers = client.containers.list()
+            backend_containers = [c.name for c in containers if c.name.startswith("backend-")]
+            return {
+                "docker_connected": True,
+                "all_containers": [c.name for c in containers],
+                "backend_containers": backend_containers,
+                "python_version": sys.version
+            }
+        except Exception as e:
+            return {"docker_connected": True, "error": str(e)}
+    return {"docker_connected": False, "client": None}
+
+
 @app.get("/api/events")
 async def get_events(limit: int = 10):
     """Get recent system events for audit log."""
