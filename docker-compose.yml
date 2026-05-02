@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Backend Server Containers
   backend-1:
@@ -22,12 +20,6 @@ services:
           memory: 64M
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
 
   backend-2:
     build:
@@ -49,12 +41,6 @@ services:
           memory: 64M
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
 
   backend-3:
     build:
@@ -76,12 +62,6 @@ services:
           memory: 64M
     networks:
       - app-network
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
 
   # Load Balancer Gateway
   gateway:
@@ -95,12 +75,9 @@ services:
     environment:
       - BACKEND_URLS=http://backend-1:8000,http://backend-2:8000,http://backend-3:8000
     depends_on:
-      backend-1:
-        condition: service_healthy
-      backend-2:
-        condition: service_healthy
-      backend-3:
-        condition: service_healthy
+      - backend-1
+      - backend-2
+      - backend-3
     deploy:
       resources:
         limits:
@@ -117,7 +94,7 @@ services:
     container_name: ml-service
     hostname: ml-service
     ports:
-      - "8001:8000"
+      - "8004:8000"
     environment:
       - MODEL_PATH=/app/models
     volumes:
@@ -165,7 +142,7 @@ services:
     container_name: orchestrator
     hostname: orchestrator
     ports:
-      - "8002:8002"
+      - "8005:8002"
     environment:
       - GATEWAY_URL=http://gateway:8000
     volumes:
