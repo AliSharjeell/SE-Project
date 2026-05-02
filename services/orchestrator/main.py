@@ -23,7 +23,7 @@ def get_docker_client():
     if _docker_client is None:
         import docker
         try:
-            # Try Windows named pipe
+            # Try Windows named pipe first
             _docker_client = docker.DockerClient(base_url='npipe:////./pipe/docker_engine')
             _docker_client.ping()
         except Exception as e1:
@@ -44,34 +44,85 @@ def get_docker_client():
     return _docker_client
 
 
+def simulate_chaos():
+    """Simulate chaos injection (for Docker Desktop on Windows without TCP access)."""
+    import random
+    import subprocess
+
+    # Try to get backend containers
+    backend_ids = []
+    try:
+        result = subprocess.run(
+            ["powershell", "-Command", "docker ps --filter 'name=backend-' --format '{{.Names}}'"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0:
+            backend_ids = [n.strip() for n in result.stdout.strip().split('\n') if n.strip()]
+    except:
+        pass
+
+    # Try killing a container (may fail if no docker access)
+    if backend_ids and len(backend_ids) > 1:
+        try:
+            # Pick a random backend that's not the first one
+            victim = random.choice(backend_ids[1:]) if len(backend_ids) > 1 else backend_ids[0]
+            subprocess.run(["powershell", "-Command", f"docker kill {victim}"],
+                          capture_output=True, timeout=10)
+            return victim, True
+        except:
+            pass
+
+    # If all else fails, simulate the event
+    return "backend-2", False  # Simulated
+
+
 def list_backend_containers():
     """List running backend containers."""
+    # Try Python Docker SDK first
     client = get_docker_client()
-    if not client:
-        print("Docker client not available")
-        return []
+    if client:
+        try:
+            containers = client.containers.list()
+            return [c.name for c in containers if c.name.startswith("backend-") and c.status == "running"]
+        except Exception as e:
+            print(f"Docker SDK error: {e}")
 
+    # Fallback: try subprocess
+    import subprocess
     try:
-        containers = client.containers.list()
-        return [c.name for c in containers if c.name.startswith("backend-") and c.status == "running"]
+        result = subprocess.run(
+            ["powershell", "-Command", "docker ps --filter 'name=backend-' --format '{{.Names}}'"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return [n.strip() for n in result.stdout.strip().split('\n') if n.strip()]
     except Exception as e:
-        print(f"Error listing containers: {e}")
-        return []
+        print(f"Subprocess error: {e}")
+
+    return []
 
 
 def kill_container(name: str) -> bool:
     """Kill a container by name."""
     client = get_docker_client()
-    if not client:
-        print("Docker client not available")
-        return False
+    if client:
+        try:
+            container = client.containers.get(name)
+            container.kill()
+            return True
+        except Exception as e:
+            print(f"Docker SDK kill error: {e}")
 
+    # Try subprocess
+    import subprocess
     try:
-        container = client.containers.get(name)
-        container.kill()
-        return True
+        result = subprocess.run(
+            ["powershell", "-Command", f"docker kill {name}"],
+            capture_output=True, text=True, timeout=10
+        )
+        return result.returncode == 0
     except Exception as e:
-        print(f"Error killing container: {e}")
+        print(f"Subprocess kill error: {e}")
         return False
 
 # State
