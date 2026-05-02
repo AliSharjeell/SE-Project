@@ -70,6 +70,18 @@ def get_servers_cached():
     return []
 
 
+@st.cache_data(ttl=10)
+def get_container_metrics_cached():
+    """Fetch real container CPU metrics from orchestrator."""
+    try:
+        response = requests.get(f"{ORCHESTRATOR_URL}/api/metrics", timeout=REQUEST_TIMEOUT)
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return {"metrics": {}, "source": "unavailable"}
+
+
 @st.cache_data(ttl=CACHE_DURATION)
 def get_orchestrator_status_cached():
     try:
@@ -275,6 +287,7 @@ st.markdown("""
 stats = safe_api_call(get_gateway_stats_cached, {'total_requests': 0, 'requests_delta': 0}) or {'total_requests': 0, 'requests_delta': 0}
 servers = safe_api_call(get_servers_cached, []) or []
 orch_status = safe_api_call(get_orchestrator_status_cached, {}) or {}
+container_metrics = get_container_metrics_cached()
 
 # ============================================
 # ROW 1: Top Metrics (4 columns)
@@ -408,8 +421,24 @@ with server_col:
                 {'server_id': 'backend-3', 'healthy': True},
             ]
 
+        # Get real metrics from container_metrics
+        metrics_dict = container_metrics.get('metrics', {}) if container_metrics else {}
+
         for server in server_list:
-            cpu = random.randint(20, 75)
+            server_id = server.get('server_id', '')
+            # Extract just the backend name from URL or full name
+            if 'http://' in server_id:
+                server_name = server_id.split('http://')[1].split(':')[0]
+            else:
+                server_name = server_id
+
+            # Get real CPU from docker stats
+            real_cpu = metrics_dict.get(server_name) or metrics_dict.get(server_id.replace('http://', ''))
+            if real_cpu is None:
+                cpu = random.randint(20, 75)  # Fallback to demo data
+            else:
+                cpu = int(real_cpu)
+
             dot_class = 'dot-green' if cpu < 70 else 'dot-yellow' if cpu < 85 else 'dot-red'
             threshold_color = '#ff453a' if cpu >= 80 else '#ff9f0a' if cpu >= 70 else '#30d158'
 

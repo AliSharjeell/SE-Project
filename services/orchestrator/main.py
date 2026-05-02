@@ -299,25 +299,31 @@ async def health():
     return {"status": "healthy", "service": "orchestrator"}
 
 
-@app.get("/api/debug")
-async def debug_info():
-    """Debug endpoint for Docker connection status."""
-    import sys
-    client = get_docker_client()
-    if client:
-        try:
-            client.ping()
-            containers = client.containers.list()
-            backend_containers = [c.name for c in containers if c.name.startswith("backend-")]
-            return {
-                "docker_connected": True,
-                "all_containers": [c.name for c in containers],
-                "backend_containers": backend_containers,
-                "python_version": sys.version
-            }
-        except Exception as e:
-            return {"docker_connected": True, "error": str(e)}
-    return {"docker_connected": False, "client": None}
+@app.get("/api/metrics")
+async def get_metrics():
+    """Get real container metrics."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["powershell", "-Command",
+             "docker stats --no-stream --format '{{.Name}},{{.CPUPerc}}'"],
+            capture_output=True, text=True, timeout=15
+        )
+        if result.returncode == 0:
+            metrics = {}
+            for line in result.stdout.strip().split('\n'):
+                if ',' in line:
+                    name, cpu = line.split(',')
+                    name = name.strip()
+                    cpu_pct = cpu.replace('%', '').strip()
+                    try:
+                        metrics[name] = float(cpu_pct)
+                    except:
+                        metrics[name] = 0.0
+            return {"metrics": metrics, "source": "docker_stats"}
+        return {"metrics": {}, "source": "unavailable"}
+    except Exception as e:
+        return {"metrics": {}, "source": f"error: {str(e)}"}
 
 
 @app.get("/api/events")
