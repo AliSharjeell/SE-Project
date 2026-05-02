@@ -650,26 +650,73 @@ def main():
     # Initialize session state
     init_session_state()
 
-    # Custom CSS
+    # Custom CSS - Light theme styling
     st.markdown("""
     <style>
+    /* Main content styling */
+    .stApp {
+        background-color: #ffffff;
+        color: #1a1a1a;
+    }
     .stMetric {
-        background-color: #f0f2f6;
+        background-color: #f8f9fa;
         padding: 15px;
         border-radius: 10px;
         border: 1px solid #e0e0e0;
     }
+    .stMetric label {
+        color: #333333 !important;
+    }
+    .stMetric [data-testid="stMetricValue"] {
+        color: #1a1a1a !important;
+    }
     h1 {
-        color: #2c3e50;
+        color: #1a1a1a;
         border-bottom: 2px solid #3498db;
         padding-bottom: 10px;
     }
     h2 {
-        color: #34495e;
+        color: #2c3e50;
         margin-top: 20px;
     }
+    h3 {
+        color: #34495e;
+    }
+    .stTabs [data-baseweb="tab-list"] {
+        background-color: #f0f2f6;
+    }
+    .stTabs [data-baseweb="tab"] {
+        color: #333333;
+    }
+    .stTabs [data-baseweb="tab"]:hover {
+        background-color: #e8e8e8;
+    }
     .streamlit-expanderHeader {
+        color: #1a1a1a;
         font-weight: bold;
+    }
+    .st-expander {
+        background-color: #f8f9fa;
+        border: 1px solid #e0e0e0;
+    }
+    .stSubheader {
+        color: #2c3e50;
+    }
+    /* Fix for markdown text */
+    p, span, div {
+        color: #1a1a1a;
+    }
+    .stAlert {
+        background-color: #f0f2f6;
+    }
+    /* DataFrame styling */
+    .dataframe {
+        background-color: #ffffff;
+        color: #1a1a1a;
+    }
+    /* Info/Warning boxes */
+    .st-emotion-cache-1vbjmh {
+        color: #1a1a1a;
     }
     </style>
     """, unsafe_allow_html=True)
