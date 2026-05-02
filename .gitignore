@@ -19,8 +19,9 @@ htmlcov/
 *.h5
 *.pkl
 *.joblib
-models/
-trained_models/
+# Exclude root models/ and trained_models/ but not src/models/
+/models/
+/trained_models/
 
 # Data
 *.csv
