@@ -22,10 +22,42 @@ def get_docker_client():
     global _docker_client
     if _docker_client is None:
         import docker
-        import os
-        # Use explicit socket path
-        _docker_client = docker.DockerClient(base_url='unix:///var/run/docker.sock')
+        _docker_client = docker.from_env()
     return _docker_client
+
+
+def kill_container_by_name(name: str) -> bool:
+    """Kill a container by name using docker CLI."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["docker", "kill", name],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        return result.returncode == 0
+    except Exception as e:
+        print(f"Error killing container: {e}")
+        return False
+
+
+def list_backend_containers():
+    """List backend containers using docker CLI."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["docker", "ps", "--filter", "name=backend-", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        if result.returncode == 0:
+            return [name.strip() for name in result.stdout.strip().split('\n') if name.strip()]
+        return []
+    except Exception as e:
+        print(f"Error listing containers: {e}")
+        return []
 
 # State
 state = {
@@ -132,30 +164,32 @@ async def set_strategy(config: StrategyConfig):
 async def inject_chaos():
     """Kill a random backend container to test system recovery."""
     try:
-        # Find all backend containers
-        all_containers = get_docker_client().containers.list()
-        containers = [c for c in all_containers if c.name.startswith("backend-")]
+        # Find all backend containers using CLI
+        container_names = list_backend_containers()
 
-        running_backends = [c for c in containers if c.status == "running"]
-
-        if not running_backends:
+        if not container_names:
             return ChaosResult(
                 success=False,
                 message="No running backend containers found"
             )
 
-        if len(running_backends) <= 1:
+        if len(container_names) <= 1:
             return ChaosResult(
                 success=False,
                 message="Cannot kill the last remaining backend container"
             )
 
-        # Select a random container to kill
-        victim = random.choice(running_backends)
-        container_name = victim.name
+        # Select a random container to kill (exclude the first one)
+        victim_name = random.choice(container_names[1:]) if len(container_names) > 1 else container_names[0]
 
-        # Force kill the container
-        victim.kill(signal="SIGKILL")
+        # Kill the container using CLI
+        if kill_container_by_name(victim_name):
+            container_name = victim_name
+        else:
+            return ChaosResult(
+                success=False,
+                message=f"Failed to kill container {victim_name}"
+            )
 
         state["last_chaos"] = {
             "container": container_name,
