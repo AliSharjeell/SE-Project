@@ -612,7 +612,7 @@ with st.sidebar:
 
     # Tab selector using columns
     if 'sidebar_tab' not in st.session_state:
-        st.session_state.sidebar_tab = 'presets'
+        st.session_state.sidebar_tab = 'manual'
 
     tab_cols = st.columns(3)
     with tab_cols[0]:

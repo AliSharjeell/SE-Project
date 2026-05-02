@@ -1,5 +1,7 @@
 import os
 import httpx
+import requests
+import threading
 from contextlib import asynccontextmanager
 from typing import Any, Dict
 
@@ -7,6 +9,27 @@ from fastapi import FastAPI, HTTPException, Response
 from pydantic import BaseModel, Field
 
 from load_balancer import LoadBalancer, RoutingStrategy
+
+# ML Service URL for health scores
+ML_SERVICE_URL = os.environ.get("ML_SERVICE_URL", "http://ml-service:8000")
+
+# Background thread to sync health scores
+def _sync_health_scores():
+    """Fetch health scores from ML service and update load balancer."""
+    try:
+        response = requests.get(f"{ML_SERVICE_URL}/scores", timeout=2)
+        if response.status_code == 200:
+            scores = response.json().get("scores", {})
+            for url, score in scores.items():
+                load_balancer.update_health_score(url, score)
+    except:
+        pass
+
+def _schedule_health_sync():
+    """Periodically sync health scores from ML service."""
+    while True:
+        _sync_health_scores()
+        threading.Event().wait(10)  # Sync every 10 seconds
 
 
 class RouteRequest(BaseModel):
@@ -57,6 +80,11 @@ async def lifespan(app: FastAPI):
             url = url.strip()
             if url:
                 load_balancer.add_server(url)
+
+    # Start health score sync thread
+    sync_thread = threading.Thread(target=_schedule_health_sync, daemon=True)
+    sync_thread.start()
+
     yield
 
 
