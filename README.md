@@ -12,6 +12,102 @@
 
 ---
 
+## 🚀 Quick Start
+
+### 1. Install Docker (Windows)
+
+If you have nothing installed, you need Docker Desktop:
+
+**Step 1:** Download from https://www.docker.com/products/docker-desktop/
+
+**Step 2:** Enable WSL 2 (required for Windows). Open PowerShell as Administrator and run:
+```powershell
+wsl --install
+```
+Restart your computer when prompted.
+
+**Step 3:** Verify installation. Open Docker Desktop, wait for "running" status, then in terminal:
+```bash
+docker --version
+docker compose version
+```
+
+### 2. Launch the Infrastructure
+
+```bash
+cd "C:\AppsNew\SE Project"
+docker compose up --build
+```
+
+This starts all services: 3 backend servers, load balancer, ML service, auto-scaler, and Streamlit dashboard.
+
+### 3. Access Points
+
+| Service | URL |
+|---------|-----|
+| **Live Dashboard** | http://localhost:8501 |
+| **Gateway API** | http://localhost:8000/docs |
+| **ML Service** | http://localhost:8001/docs |
+| **Live Demo Control API** | http://localhost:8002/docs |
+
+### 4. Stop Services
+
+```bash
+docker compose down
+```
+
+---
+
+## 🎬 How to Test Demo Flows
+
+The Streamlit dashboard (http://localhost:8501) includes a **Live Demo Control Panel** with two modes:
+
+### Preset Mode (One-Click Demos)
+
+| Preset Button | What It Does |
+|---------------|--------------|
+| **Black Friday Rush** | Simulates massive traffic ramp (10,000+ RPS) to trigger auto-scaling |
+| **DDoS Attack** | Generates erratic traffic spikes AND kills a backend container |
+| **Normal Operations** | Resets to calm baseline (100 RPS constant) |
+
+### Manual Mode (Fine-Grained Control)
+
+- **Routing Strategy**: Switch between Round Robin, Least Connections, or AI-Powered
+- **Traffic Intensity**: Slider from 10 to 10,000 RPS
+- **Traffic Shape**: Choose `constant`, `ramp`, `spike`, `sine_wave`, or `burst`
+- **Inject Chaos**: Click to kill a random backend container and watch graceful recovery
+
+### Live Demo Control API
+
+You can also control the system programmatically via the API at http://localhost:8002/docs:
+
+```bash
+# Set traffic pattern
+curl -X POST http://localhost:8002/api/set_traffic \
+  -H "Content-Type: application/json" \
+  -d '{"pattern": "spike", "intensity": 5000}'
+
+# Change routing strategy
+curl -X POST http://localhost:8002/api/set_strategy \
+  -H "Content-Type: application/json" \
+  -d '{"strategy": "least_connections"}'
+
+# Kill a random backend (chaos engineering)
+curl -X POST http://localhost:8002/api/inject_chaos
+
+# Check system status
+curl http://localhost:8002/api/status
+```
+
+### What to Watch For
+
+1. **Load Balancing**: Switch strategies and see requests distributed differently across backends
+2. **Auto-Scaling**: Set high traffic intensity and watch new containers spin up
+3. **Chaos Recovery**: Kill a container and see the load balancer gracefully route around failure
+4. **ML Predictions**: Watch traffic forecasts and anomaly alerts in real-time
+
+---
+
 ## System Architecture
 
 ```
@@ -107,24 +203,90 @@
 
 ## 🚀 How to Run the Project
 
-### Launch the Infrastructure (Docker)
+### Prerequisites: Install Docker (Windows)
 
-The entire system is containerized. To spin up the Load Balancer, ML Service, Backend Nodes, and the Streamlit Dashboard, simply run:
+If you have nothing installed, you need Docker Desktop. Follow these steps:
 
+**Step 1: Download Docker Desktop**
+1. Go to https://www.docker.com/products/docker-desktop/
+2. Click **Download for Windows**
+3. Run the installer (`Docker Desktop Installer.exe`)
+
+**Step 2: Enable WSL 2 (Required for Windows)**
+1. Open **PowerShell as Administrator**
+2. Run:
+```powershell
+wsl --install
+```
+3. Restart your computer when prompted
+
+**Step 3: Verify Docker Installation**
+1. Open **Docker Desktop** (search in Start menu)
+2. Wait for it to say "Docker Desktop is running"
+3. Open a new terminal and verify:
 ```bash
-# Build and start the microservices network
-docker-compose up --build
+docker --version
+docker compose version
 ```
 
-**Access Points:**
-- **Live Dashboard (Control Panel):** http://localhost:8501
-- **Gateway API (Load Balancer):** http://localhost:8000
-- **ML Prediction Service:** http://localhost:8001
-
-To shut down the infrastructure and gracefully stop all nodes:
-```bash
-docker-compose down
+You should see something like:
 ```
+Docker version 27.x.x
+Docker Compose version v2.x.x
+```
+
+---
+
+### Launch the Infrastructure
+
+**Step 4: Start All Services**
+Navigate to the project folder and run:
+```bash
+cd "C:\AppsNew\SE Project"
+docker compose up --build
+```
+
+This will:
+- Build and start 3 backend server containers
+- Start the load balancer gateway
+- Start the ML prediction service
+- Start the auto-scaler
+- Start the Live Demo Control API
+- Start the Streamlit dashboard
+
+**Step 5: Access the Application**
+
+| Service | URL |
+|---------|-----|
+| **Live Dashboard (Control Panel)** | http://localhost:8501 |
+| **Gateway API (Load Balancer)** | http://localhost:8000/docs |
+| **ML Prediction Service** | http://localhost:8001/docs |
+| **Live Demo Control API** | http://localhost:8002/docs |
+
+---
+
+### Stop the Infrastructure
+
+To shut down all services gracefully:
+```bash
+docker compose down
+```
+
+To stop AND remove all containers, networks, and volumes:
+```bash
+docker compose down -v
+```
+
+---
+
+### Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `docker: command not found` | Docker Desktop isn't running. Open Docker Desktop and wait for "running" status. |
+| `docker compose` fails | Use `docker-compose` (with hyphen) on older versions |
+| Port already in use | Another application is using port 8501, 8000, or 8001. Stop the other app or edit `docker-compose.yml` |
+| WSL 2 error | Run `wsl --update` in PowerShell as Administrator |
 
 ---
 
