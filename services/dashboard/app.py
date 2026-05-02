@@ -605,7 +605,7 @@ with st.sidebar:
         st.markdown("#### Routing Strategy")
 
         strategy = st.selectbox("Load Balancer",
-                                ["round_robin", "least_connections", "ai_powered"],
+                                ["round_robin", "least_connections", "ai_powered", "off"],
                                 format_func=lambda x: x.replace("_", " ").title())
 
         if st.button("Apply Strategy", use_container_width=True):
