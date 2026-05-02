@@ -23,18 +23,24 @@ def get_docker_client():
     if _docker_client is None:
         import docker
         try:
-            # Try host.docker.internal:2375
-            _docker_client = docker.DockerClient(base_url='tcp://host.docker.internal:2375')
+            # Try Windows named pipe
+            _docker_client = docker.DockerClient(base_url='npipe:////./pipe/docker_engine')
             _docker_client.ping()
         except Exception as e1:
-            print(f"host.docker.internal failed: {e1}")
+            print(f"Named pipe failed: {e1}")
             try:
-                # Fallback: try 127.0.0.1:2375
-                _docker_client = docker.DockerClient(base_url='tcp://127.0.0.1:2375')
+                # Fallback: TCP to host.docker.internal
+                _docker_client = docker.DockerClient(base_url='tcp://host.docker.internal:2375')
                 _docker_client.ping()
             except Exception as e2:
-                print(f"127.0.0.1:2375 failed: {e2}")
-                _docker_client = None
+                print(f"TCP host.docker.internal failed: {e2}")
+                try:
+                    # Fallback: 127.0.0.1:2375
+                    _docker_client = docker.DockerClient(base_url='tcp://127.0.0.1:2375')
+                    _docker_client.ping()
+                except Exception as e3:
+                    print(f"All Docker connections failed: {e1}, {e2}, {e3}")
+                    _docker_client = None
     return _docker_client
 
 
