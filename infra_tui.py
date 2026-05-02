@@ -387,11 +387,11 @@ class InfrastructureTUI:
         print(f"\n{Colors.HEADER}{Colors.BOLD}=== FULL SYSTEM DEMONSTRATION ==={Colors.ENDC}\n")
 
         print(f"{Colors.CYAN}Step 1: Initializing System Components...{Colors.ENDC}")
-        print(f"  ✓ Traffic Generator ready")
-        print(f"  ✓ Monitoring System ready")
-        print(f"  ✓ Load Balancer with 3 servers")
-        print(f"  ✓ Auto-Scaler configured")
-        print(f"  ✓ ML Models initialized")
+        print(f"  [OK] Traffic Generator ready")
+        print(f"  [OK] Monitoring System ready")
+        print(f"  [OK] Load Balancer with 3 servers")
+        print(f"  [OK] Auto-Scaler configured")
+        print(f"  [OK] ML Models initialized")
 
         print(f"\n{Colors.CYAN}Step 2: Training ML Models...{Colors.ENDC}")
 
@@ -400,7 +400,7 @@ class InfrastructureTUI:
         traffic = 50 + 30 * np.sin(np.arange(300) / 30) + np.random.normal(0, 15, 300)
         data = pd.DataFrame({'timestamp': dates, 'request_count': traffic.astype(int).clip(10, 150)})
         self.predictor.train(data)
-        print(f"  ✓ Traffic Predictor trained")
+        print(f"  [OK] Traffic Predictor trained")
 
         # Train anomaly detector
         baseline = pd.DataFrame({
@@ -408,7 +408,7 @@ class InfrastructureTUI:
             'response_time': np.random.normal(100, 20, 200)
         })
         self.anomaly_detector.fit(baseline)
-        print(f"  ✓ Anomaly Detector trained")
+        print(f"  [OK] Anomaly Detector trained")
 
         print(f"\n{Colors.CYAN}Step 3: Running 20 Simulation Iterations...{Colors.ENDC}")
         print(f"{'─' * 75}")
@@ -457,7 +457,7 @@ class InfrastructureTUI:
               f"{status['statistics']['total_scale_downs']} down")
         print(f"  Active Servers: {len(self.lb.get_all_servers())}")
 
-        print(f"\n{Colors.GREEN}{Colors.BOLD}[✓] Demonstration Complete!{Colors.ENDC}\n")
+        print(f"\n{Colors.GREEN}{Colors.BOLD}[[OK]] Demonstration Complete!{Colors.ENDC}\n")
 
     def run(self):
         """Main run loop."""
