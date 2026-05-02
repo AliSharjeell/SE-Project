@@ -9,6 +9,7 @@ class RoutingStrategy(str, Enum):
     ROUND_ROBIN = "round_robin"
     LEAST_CONNECTIONS = "least_connections"
     AI_POWERED = "ai_powered"
+    OFF = "off"
 
 
 @dataclass
@@ -31,6 +32,7 @@ class StrategyStats:
     round_robin: int = 0
     least_connections: int = 0
     ai_powered: int = 0
+    off: int = 0
 
 
 class LoadBalancer:
@@ -125,6 +127,8 @@ class LoadBalancer:
                 return self._select_least_connections(healthy_servers)
             elif strategy == RoutingStrategy.AI_POWERED:
                 return self._select_ai_powered(healthy_servers)
+            elif strategy == RoutingStrategy.OFF:
+                return self._select_off(healthy_servers)
 
             return None
 
@@ -173,6 +177,17 @@ class LoadBalancer:
                 return server.url
 
         # Fallback to first server
+        healthy_servers[0].last_selected = time.time()
+        return healthy_servers[0].url
+
+    def _select_off(self, healthy_servers: List[Server]) -> str:
+        """
+        Off: No load balancing - return first healthy server.
+        Effectively disables intelligent routing.
+        """
+        self._stats.off += 1
+        self._total_requests += 1
+
         healthy_servers[0].last_selected = time.time()
         return healthy_servers[0].url
 
@@ -240,6 +255,7 @@ class LoadBalancer:
                     "round_robin": self._stats.round_robin,
                     "least_connections": self._stats.least_connections,
                     "ai_powered": self._stats.ai_powered,
+                    "off": self._stats.off,
                 },
                 "total_requests": self._total_requests,
                 "servers": {
