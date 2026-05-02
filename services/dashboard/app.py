@@ -458,7 +458,7 @@ with tab1:
         fig_latency.update_layout(
             template='plotly_dark',
             paper_bgcolor='white',
-            plot_bgcolor='transparent',
+            plot_bgcolor='white',
             font=dict(color='#ffffff', family='Inter'),
             margin=dict(l=40, r=20, t=20, b=40),
             showlegend=True,
@@ -482,7 +482,7 @@ with tab1:
         fig_throughput.update_layout(
             template='plotly_dark',
             paper_bgcolor='white',
-            plot_bgcolor='transparent',
+            plot_bgcolor='white',
             font=dict(color='#ffffff', family='Inter'),
             margin=dict(l=40, r=20, t=20, b=40),
             showlegend=False,
@@ -616,7 +616,7 @@ with tab4:
         fig_pred.update_layout(
             template='plotly_dark',
             paper_bgcolor='white',
-            plot_bgcolor='transparent',
+            plot_bgcolor='white',
             font=dict(color='#ffffff', family='Inter'),
             margin=dict(l=40, r=20, t=20, b=40),
             height=280,
@@ -647,7 +647,7 @@ with tab4:
         fig_anomaly.update_layout(
             template='plotly_dark',
             paper_bgcolor='white',
-            plot_bgcolor='transparent',
+            plot_bgcolor='white',
             font=dict(color='#ffffff', family='Inter'),
             margin=dict(l=40, r=20, t=20, b=40),
             height=280,
