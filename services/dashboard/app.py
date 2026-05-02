@@ -579,10 +579,10 @@ with st.sidebar:
             st.rerun()
 
         if st.button("Normal Ops", use_container_width=True, key="normal_preset"):
-            if set_traffic("constant", 100):
-                show_toast("Normal operations restored - 100 RPS constant")
+            if set_traffic("constant", 50):
+                show_toast("Normal operations - 50 RPS steady")
             else:
-                show_toast("Reset to: CONSTANT → 100 RPS", "🔄")
+                show_toast("Reset: 50 RPS", "🔄")
 
         if st.button("Sine Wave", use_container_width=True, key="sine_preset"):
             if set_traffic("sine_wave", 500):
