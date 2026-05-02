@@ -604,8 +604,6 @@ with pred_col2:
 # ============================================
 # SIDEBAR - Command Center
 # ============================================
-# Auto-refresh setting (default, can be overridden in settings tab)
-auto_refresh = True
 
 with st.sidebar:
     st.markdown("### Command Center")
@@ -819,10 +817,11 @@ with st.sidebar:
     else:
         st.markdown("#### Display Settings")
 
-        auto_refresh = st.checkbox("Auto-refresh (5s)", value=True)
         chart_points = st.slider("Chart data points", 10, 100, 50)
 
         st.markdown("---")
+
+        st.caption("💡 Data refreshes automatically via caching")
         st.markdown("#### Alert Thresholds")
 
         cpu_threshold = st.slider("CPU Alert (%)", 50, 95, 80)
@@ -897,10 +896,5 @@ else:
     with st.expander("System Audit Log", expanded=False):
         st.info("No system events recorded yet. Events will appear as you interact with the system.")
 
-# Auto-refresh - use session state to track setting
-if 'auto_refresh' not in st.session_state:
-    st.session_state.auto_refresh = True
-
-if st.session_state.auto_refresh:
-    time.sleep(5)
-    st.rerun()
+# Note: Data refreshes automatically via @st.cache_data(ttl=...) decorators
+# No manual sleep/rerun needed - this prevents UI freezing
