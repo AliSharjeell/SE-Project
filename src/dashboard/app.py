@@ -650,73 +650,92 @@ def main():
     # Initialize session state
     init_session_state()
 
-    # Custom CSS - Light theme styling
+    # Custom CSS - Dark theme styling
     st.markdown("""
     <style>
     /* Main content styling */
     .stApp {
-        background-color: #ffffff;
-        color: #1a1a1a;
+        background-color: #1a1a2e;
+        color: #e0e0e0;
     }
     .stMetric {
-        background-color: #f8f9fa;
+        background-color: #16213e;
         padding: 15px;
         border-radius: 10px;
-        border: 1px solid #e0e0e0;
+        border: 1px solid #0f3460;
     }
     .stMetric label {
-        color: #333333 !important;
+        color: #a0a0a0 !important;
     }
     .stMetric [data-testid="stMetricValue"] {
-        color: #1a1a1a !important;
+        color: #e0e0e0 !important;
     }
     h1 {
-        color: #1a1a1a;
+        color: #e0e0e0;
         border-bottom: 2px solid #3498db;
         padding-bottom: 10px;
     }
     h2 {
-        color: #2c3e50;
+        color: #e0e0e0;
         margin-top: 20px;
     }
     h3 {
-        color: #34495e;
+        color: #c0c0c0;
     }
     .stTabs [data-baseweb="tab-list"] {
-        background-color: #f0f2f6;
+        background-color: #16213e;
     }
     .stTabs [data-baseweb="tab"] {
-        color: #333333;
+        color: #a0a0a0;
     }
     .stTabs [data-baseweb="tab"]:hover {
-        background-color: #e8e8e8;
+        background-color: #0f3460;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #1a1a2e !important;
+        color: #3498db !important;
     }
     .streamlit-expanderHeader {
-        color: #1a1a1a;
+        color: #e0e0e0;
         font-weight: bold;
     }
     .st-expander {
-        background-color: #f8f9fa;
-        border: 1px solid #e0e0e0;
+        background-color: #16213e;
+        border: 1px solid #0f3460;
     }
     .stSubheader {
-        color: #2c3e50;
+        color: #e0e0e0;
     }
     /* Fix for markdown text */
     p, span, div {
-        color: #1a1a1a;
+        color: #e0e0e0;
     }
     .stAlert {
-        background-color: #f0f2f6;
+        background-color: #16213e;
     }
     /* DataFrame styling */
     .dataframe {
-        background-color: #ffffff;
-        color: #1a1a1a;
+        background-color: #1a1a2e;
+        color: #e0e0e0;
+    }
+    /* Sidebar styling */
+    [data-testid="stSidebar"] {
+        background-color: #16213e;
+    }
+    .stSidebar .stMarkdown {
+        color: #e0e0e0;
     }
     /* Info/Warning boxes */
     .st-emotion-cache-1vbjmh {
-        color: #1a1a1a;
+        color: #e0e0e0;
+    }
+    /* Section containers */
+    .element-container {
+        background-color: transparent;
+    }
+    /* Horizontal lines */
+    hr {
+        border-color: #0f3460;
     }
     </style>
     """, unsafe_allow_html=True)
