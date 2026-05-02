@@ -145,8 +145,9 @@ services:
       - "8005:8002"
     environment:
       - GATEWAY_URL=http://gateway:8000
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+      - DOCKER_HOST=tcp://host.docker.internal:2375
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       - gateway
     deploy:

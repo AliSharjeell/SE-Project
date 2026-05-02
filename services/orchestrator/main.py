@@ -23,16 +23,17 @@ def get_docker_client():
     if _docker_client is None:
         import docker
         try:
-            # Try TCP connection to Docker Desktop
+            # Try host.docker.internal:2375
             _docker_client = docker.DockerClient(base_url='tcp://host.docker.internal:2375')
             _docker_client.ping()
         except Exception as e1:
+            print(f"host.docker.internal failed: {e1}")
             try:
-                # Fallback: try local TCP
+                # Fallback: try 127.0.0.1:2375
                 _docker_client = docker.DockerClient(base_url='tcp://127.0.0.1:2375')
                 _docker_client.ping()
             except Exception as e2:
-                print(f"Docker connections failed: {e1}, {e2}")
+                print(f"127.0.0.1:2375 failed: {e2}")
                 _docker_client = None
     return _docker_client
 
