@@ -457,7 +457,7 @@ with tab1:
         ))
         fig_latency.update_layout(
             template='plotly_dark',
-            paper_bgcolor='transparent',
+            paper_bgcolor='white',
             plot_bgcolor='transparent',
             font=dict(color='#ffffff', family='Inter'),
             margin=dict(l=40, r=20, t=20, b=40),
@@ -481,7 +481,7 @@ with tab1:
         ))
         fig_throughput.update_layout(
             template='plotly_dark',
-            paper_bgcolor='transparent',
+            paper_bgcolor='white',
             plot_bgcolor='transparent',
             font=dict(color='#ffffff', family='Inter'),
             margin=dict(l=40, r=20, t=20, b=40),
@@ -556,7 +556,7 @@ with tab3:
         )])
         fig_pie.update_layout(
             template='plotly_dark',
-            paper_bgcolor='transparent',
+            paper_bgcolor='white',
             font=dict(color='#ffffff', family='Inter'),
             margin=dict(l=40, r=40, t=40, b=40),
             height=280,
@@ -615,7 +615,7 @@ with tab4:
         ))
         fig_pred.update_layout(
             template='plotly_dark',
-            paper_bgcolor='transparent',
+            paper_bgcolor='white',
             plot_bgcolor='transparent',
             font=dict(color='#ffffff', family='Inter'),
             margin=dict(l=40, r=20, t=20, b=40),
@@ -646,7 +646,7 @@ with tab4:
         ))
         fig_anomaly.update_layout(
             template='plotly_dark',
-            paper_bgcolor='transparent',
+            paper_bgcolor='white',
             plot_bgcolor='transparent',
             font=dict(color='#ffffff', family='Inter'),
             margin=dict(l=40, r=20, t=20, b=40),
