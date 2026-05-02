@@ -15,8 +15,15 @@ from pydantic import BaseModel
 
 app = FastAPI(title="Orchestrator - Live Demo Control", version="1.0.0")
 
-# Docker client
-docker_client = docker.from_env()
+# Docker client - lazy initialization
+_docker_client = None
+
+def get_docker_client():
+    global _docker_client
+    if _docker_client is None:
+        import docker
+        _docker_client = docker.from_env()
+    return _docker_client
 
 # State
 state = {
@@ -105,7 +112,7 @@ async def inject_chaos():
     """Kill a random backend container to test system recovery."""
     try:
         # Find all backend containers
-        containers = docker_client.containers.list(
+        containers = get_docker_client().containers.list(
             filters={"name": lambda name: name.startswith("backend-")}
         )
 
