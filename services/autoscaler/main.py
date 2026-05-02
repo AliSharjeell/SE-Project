@@ -19,11 +19,11 @@ from flask import Flask, jsonify
 GATEWAY_URL = "http://gateway:8000"
 BACKEND_CONTAINER_PREFIX = "backend-"
 METRICS_INTERVAL = 10  # seconds
-SCALE_UP_THRESHOLD = 70.0  # CPU %
-SCALE_DOWN_THRESHOLD = 30.0  # CPU %
+SCALE_UP_THRESHOLD = 75.0  # CPU %
+SCALE_DOWN_THRESHOLD = 25.0  # CPU %
 MIN_SERVERS = 1
 MAX_SERVERS = 10
-COOLDOWN_SECONDS = 60
+COOLDOWN_SECONDS = 30
 
 # Initialize Flask app
 app = Flask(__name__)
