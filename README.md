@@ -129,13 +129,15 @@ curl http://localhost:8002/api/status
 │   (FastAPI)      │  │   (FastAPI)      │  │   (FastAPI)      │  │  (LB)    │
 │   0.25 CPU       │  │   0.25 CPU       │  │   0.25 CPU       │  │ 0.5 CPU  │
 └──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────┘
-                                                                    │
-           ┌─────────────────────────────────────────────────────────┘
-           ▼
+                                                                            │
+                          ┌─────────────────────────────────────────────────┘
+                          │ (health scores sync every 10s)
+                          ▼
 ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
 │   ml-service     │  │   autoscaler     │  │   dashboard     │
-│   (Scikit-learn) │  │   (Docker SDK)   │  │   (Streamlit)    │
+│   (Flask)        │  │   (Docker SDK)   │  │   (Streamlit)    │
 │   0.5 CPU        │  │   0.25 CPU       │  │   0.5 CPU       │
+│   Port 8000      │  │                  │  │   Port 8501     │
 └──────────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
@@ -154,11 +156,29 @@ curl http://localhost:8002/api/status
 - **AI-Powered**: Weighted selection based on health scores
 - Port: 8000
 
-### ML Service
-- **TrafficPredictor**: Random Forest-based traffic forecasting
-- **AnomalyDetector**: Isolation Forest for anomaly detection
-- CPU-only inference (Scikit-learn, no GPU required)
-- Port: 8001
+### ML Service (Port 8000)
+Health score prediction service using a weighted ensemble model.
+
+**Features:**
+- Collects metrics from gateway and orchestrator every 5 seconds
+- Predicts server health scores (0.0-1.0) based on real-time data
+- Synced to gateway every 10 seconds for AI-powered routing
+
+**Health Score Model:**
+| Factor | Weight | Threshold |
+|--------|--------|-----------|
+| CPU % | -0.3 | >80% high |
+| Memory % | -0.2 | >85% high |
+| Error Rate | -0.5 | >5% high |
+| Success Rate | +0.3 | - |
+| Latency | -0.1 | >200ms slow |
+| Connections | -0.1 | >50 high |
+
+**Endpoints:**
+- `GET /scores` - All server health scores
+- `GET /scores/{server}` - Single server score
+- `GET /metrics` - Raw metrics data
+- `GET /info` - Model metadata
 
 ### Auto-Scaler
 - Docker SDK-based container management
@@ -191,12 +211,13 @@ curl http://localhost:8002/api/status
 | GET | `/stats` | Routing statistics |
 | GET | `/health` | Gateway health check |
 
-### ML Service (Port 8001)
+### ML Service (Port 8000)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/predict/traffic` | Traffic prediction with confidence intervals |
-| POST | `/detect/anomaly` | Anomaly detection on metrics |
-| GET | `/model/info` | Model metadata and feature importance |
+| GET | `/scores` | Health scores for all servers |
+| GET | `/scores/{server}` | Single server health score |
+| GET | `/metrics` | Raw metrics data |
+| GET | `/info` | Model metadata and feature importance |
 | GET | `/health` | Service health check |
 
 ### Orchestrator - Live Demo Control (Port 8002)
@@ -459,7 +480,36 @@ User Click
 |------------|------------------------------|
 | **Docker** 🐳 | Acts as the **physical metal**. Instead of needing 3 separate computers, Docker creates isolated "boxes" (containers) on one machine. Each backend server runs in its own box. |
 | **FastAPI** ⚡ | The **language** the servers speak. Like how humans use English/French, computers use HTTP. FastAPI is a modern, fast framework for building APIs (web services). |
-| **Scikit-learn** 🧠 | The **brain**. Uses Random Forest algorithm to predict traffic patterns 10 minutes into the future. Also uses Isolation Forest to detect anomalies (unusual behavior). |
+| **Scikit-learn** 🧠 | Not applicable anymore. We use a custom **weighted ensemble** model in Python that predicts server health (0-1) based on CPU, memory, error rate, success rate, latency, and active connections. |
+
+---
+
+## AI-Powered Load Balancing: How It Works
+
+The `ai_powered` routing strategy uses **weighted probabilistic selection** based on real-time health scores from the ML service.
+
+### Data Sources
+1. **Gateway stats** - request counts, error counts, active connections per server
+2. **Orchestrator metrics** - container CPU usage from Docker stats
+3. **Health checks** - latency and availability per backend
+
+### Health Score Algorithm
+```
+health_score = 1.0
+  - penalties for: high CPU (>80%), high memory (>85%), high error rate (>5%), high latency, too many connections
+  + bonuses for: high success rate, low connection count
+```
+
+### Selection Process
+1. ML service collects metrics every 5 seconds
+2. Gateway syncs health scores every 10 seconds
+3. When a request comes in, servers are selected with probability proportional to their health score
+4. Unhealthy servers (score < 0.3) are temporarily excluded
+
+### Why It Works
+- Traffic flows to servers that can handle it
+- Failing servers naturally get less traffic
+- Auto-scaler gets time to spin up new containers
 | **Streamlit** 📊 | The **control center dashboard**. Displays real-time charts, lets you inject chaos (kill servers), and control traffic patterns without writing code. |
 | **Docker SDK** 🔌 | The **automation layer**. Allows the auto-scaler to programmatically start/stop Docker containers based on CPU usage. |
 
@@ -574,9 +624,10 @@ For engineers who want fine-grained control:
            └───────────────────────────────┼───────────────────────────────┘
                                            │ Metrics
                     ┌──────────────────────▼──────────────────────────────┐
-                    │            🧠 ML SERVICE (Scikit-learn)              │
-                    │     • TrafficPredictor (Random Forest)              │
-                    │     • AnomalyDetector (Isolation Forest)             │
+                    │       🧠 ML SERVICE (Health Prediction)             │
+                    │     • Weighted ensemble model                       │
+                    │     • Predicts health scores based on metrics       │
+                    │     • Synced to gateway every 10 seconds            │
                     └──────────────────────┬──────────────────────────────┘
                                            │
                     ┌──────────────────────▼──────────────────────────────┐
