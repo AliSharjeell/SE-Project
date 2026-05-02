@@ -150,8 +150,15 @@ st.markdown("""
     }
 
     .sidebar-tabs { background: var(--bg-tertiary); border-radius: 8px; padding: 4px; gap: 4px; }
-    .sidebar-tab { background: transparent; border-radius: 6px; color: var(--text-secondary); font-weight: 500; font-size: 0.8rem; padding: 8px 16px; border: none; cursor: pointer; }
+    .sidebar-tab { background: transparent; border-radius: 6px; color: var(--text-secondary); font-weight: 500; font-size: 0.75rem; padding: 6px 8px; border: none; cursor: pointer; white-space: nowrap; }
     .sidebar-tab.active { background: var(--bg-card); color: var(--text-primary); }
+
+    /* Sidebar button fixes */
+    [data-testid="stHorizontalBlock"] button {
+        font-size: 0.75rem !important;
+        padding: 0.25rem 0.5rem !important;
+        white-space: nowrap !important;
+    }
 
     .control-btn {
         background: var(--bg-tertiary);
@@ -500,37 +507,32 @@ with st.sidebar:
     if st.session_state.sidebar_tab == 'presets':
         st.markdown("#### Demo Scenarios")
 
-        col_btn1, col_btn2 = st.columns(2)
+        # Stack buttons vertically for clean alignment
+        if st.button("Black Friday Rush", use_container_width=True, key="bf_preset"):
+            if set_traffic("ramp", 10000):
+                show_toast("Black Friday Rush activated - 10,000 RPS ramp")
+            else:
+                show_toast("Traffic pattern: RAMP → 10,000 RPS", "📈")
 
-        with col_btn1:
-            st.markdown('<div class="control-btn preset-green">', unsafe_allow_html=True)
-            if st.button("Black Friday Rush", use_container_width=True, key="bf_preset"):
-                if set_traffic("ramp", 10000):
-                    show_toast("Black Friday Rush activated - 10,000 RPS ramp")
-                else:
-                    show_toast("Traffic pattern: RAMP → 10,000 RPS", "📈")
-            st.markdown('</div>', unsafe_allow_html=True)
+        if st.button("DDoS Attack", use_container_width=True, key="ddos_preset"):
+            set_traffic("spike", 8000)
+            chaos_result = inject_chaos()
+            if chaos_result and chaos_result.get('success'):
+                show_toast(f"Container {chaos_result.get('container_killed')} killed!", "💥")
+            else:
+                show_toast("DDoS simulation + chaos injection", "⚠️")
 
-            if st.button("DDoS Attack", use_container_width=True, key="ddos_preset"):
-                set_traffic("spike", 8000)
-                chaos_result = inject_chaos()
-                if chaos_result and chaos_result.get('success'):
-                    show_toast(f"Container {chaos_result.get('container_killed')} killed!", "💥")
-                else:
-                    show_toast("DDoS simulation + chaos injection", "⚠️")
+        if st.button("Normal Ops", use_container_width=True, key="normal_preset"):
+            if set_traffic("constant", 100):
+                show_toast("Normal operations restored - 100 RPS constant")
+            else:
+                show_toast("Reset to: CONSTANT → 100 RPS", "🔄")
 
-        with col_btn2:
-            if st.button("Normal Ops", use_container_width=True, key="normal_preset"):
-                if set_traffic("constant", 100):
-                    show_toast("Normal operations restored - 100 RPS constant")
-                else:
-                    show_toast("Reset to: CONSTANT → 100 RPS", "🔄")
-
-            if st.button("Sine Wave", use_container_width=True, key="sine_preset"):
-                if set_traffic("sine_wave", 500):
-                    show_toast("Sine wave pattern - 500 RPS", "〰️")
-                else:
-                    show_toast("Traffic: SINE_WAVE → 500 RPS", "〰️")
+        if st.button("Sine Wave", use_container_width=True, key="sine_preset"):
+            if set_traffic("sine_wave", 500):
+                show_toast("Sine wave pattern - 500 RPS", "〰️")
+            else:
+                show_toast("Traffic: SINE_WAVE → 500 RPS", "〰️")
 
         st.markdown("---")
         st.markdown("#### Chaos Engineering")
