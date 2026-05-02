@@ -47,6 +47,14 @@ class TrafficHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(('{"status": "started", "rps": %s}' % rps).encode())
 
+        elif self.path.startswith('/strategy'):
+            strategy = self._get_param('strategy', 'ai_powered')
+            state.strategy = strategy
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            self.wfile.write(('{"status": "updated", "strategy": "%s"}' % strategy).encode())
+
         elif self.path == '/stop':
             self._stop_traffic()
             self.send_response(200)
@@ -98,9 +106,9 @@ class TrafficHandler(BaseHTTPRequestHandler):
 
     def _generate_traffic(self):
         interval = 1.0 / max(state.rps, 1)
-        endpoint = f"{GENERATE_ENDPOINT}?strategy={state.strategy}"
         while state.active:
             try:
+                endpoint = f"{GENERATE_ENDPOINT}?strategy={state.strategy}"
                 requests.get(endpoint, timeout=1)
                 state.count += 1
             except:
