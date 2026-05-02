@@ -26,38 +26,57 @@ def get_docker_client():
     return _docker_client
 
 
-def kill_container_by_name(name: str) -> bool:
-    """Kill a container by name using docker CLI."""
+def get_container_id_by_name(name: str) -> str:
+    """Get container ID by name using docker CLI on host."""
     import subprocess
     try:
         result = subprocess.run(
-            ["docker", "kill", name],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        return result.returncode == 0
-    except Exception as e:
-        print(f"Error killing container: {e}")
-        return False
-
-
-def list_backend_containers():
-    """List backend containers using docker CLI."""
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["docker", "ps", "--filter", "name=backend-", "--format", "{{.Names}}"],
+            ["docker", "ps", "-q", "--filter", f"name=^{name}$"],
             capture_output=True,
             text=True,
             timeout=10
         )
         if result.returncode == 0:
-            return [name.strip() for name in result.stdout.strip().split('\n') if name.strip()]
+            return result.stdout.strip()
+        return ""
+    except Exception as e:
+        print(f"Error getting container ID: {e}")
+        return ""
+
+
+def list_backend_containers():
+    """List running backend container names."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["powershell", "-Command", "docker ps --filter 'name=backend-' --format '{{{{.Names}}}}'"],
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        if result.returncode == 0:
+            names = [n.strip() for n in result.stdout.strip().split('\n') if n.strip()]
+            return names
         return []
     except Exception as e:
         print(f"Error listing containers: {e}")
         return []
+
+
+def kill_container(name: str) -> bool:
+    """Kill a container by name."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["powershell", "-Command", f"docker kill {name}"],
+            capture_output=True,
+            text=True,
+            timeout=15
+        )
+        return result.returncode == 0
+    except Exception as e:
+        print(f"Error killing container: {e}")
+        return False
 
 # State
 state = {
@@ -183,7 +202,7 @@ async def inject_chaos():
         victim_name = random.choice(container_names[1:]) if len(container_names) > 1 else container_names[0]
 
         # Kill the container using CLI
-        if kill_container_by_name(victim_name):
+        if kill_container(victim_name):
             container_name = victim_name
         else:
             return ChaosResult(
