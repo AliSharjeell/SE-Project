@@ -2,6 +2,7 @@
 Performance Dashboard - AI Infrastructure Manager
 
 Modern, minimalist, Apple/Linear-inspired dark theme dashboard.
+Live Demo Control Panel with Presets and Manual modes.
 """
 
 import streamlit as st
@@ -19,12 +20,13 @@ st.set_page_config(
     page_title="AI Infrastructure Manager",
     page_icon="",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
 # API endpoints
 GATEWAY_URL = "http://gateway:8000"
 ML_SERVICE_URL = "http://ml-service:8000"
+ORCHESTRATOR_URL = "http://orchestrator:8002"
 
 
 # Apple/Linear-inspired CSS
@@ -199,6 +201,50 @@ st.markdown("""
     [data-testid="stSidebar"] h3 {
         color: var(--text-primary);
     }
+
+    /* Preset buttons */
+    .preset-button {
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 1rem;
+        margin: 0.5rem 0;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .preset-button:hover {
+        background: var(--bg-card);
+        border-color: var(--accent);
+    }
+
+    /* Chaos button styling */
+    .chaos-button {
+        border: 2px solid var(--error) !important;
+        background: rgba(255, 69, 58, 0.1) !important;
+    }
+
+    .chaos-button:hover {
+        background: rgba(255, 69, 58, 0.2) !important;
+    }
+
+    /* Control panel sections */
+    .control-section {
+        background: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 1rem;
+        margin: 0.75rem 0;
+    }
+
+    .section-title {
+        font-size: 0.875rem;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -236,6 +282,61 @@ def get_gateway_health():
     return None
 
 
+def get_orchestrator_status():
+    """Get orchestrator status."""
+    try:
+        response = requests.get(f"{ORCHESTRATOR_URL}/api/status", timeout=2)
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return None
+
+
+def set_traffic(pattern: str, intensity: int):
+    """Set traffic pattern and intensity via orchestrator."""
+    try:
+        response = requests.post(
+            f"{ORCHESTRATOR_URL}/api/set_traffic",
+            json={"pattern": pattern, "intensity": intensity},
+            timeout=5
+        )
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return None
+
+
+def set_strategy(strategy: str):
+    """Set routing strategy via orchestrator."""
+    try:
+        response = requests.post(
+            f"{ORCHESTRATOR_URL}/api/set_strategy",
+            json={"strategy": strategy},
+            timeout=5
+        )
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return None
+
+
+def inject_chaos():
+    """Trigger chaos injection via orchestrator."""
+    try:
+        response = requests.post(
+            f"{ORCHESTRATOR_URL}/api/inject_chaos",
+            timeout=10
+        )
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return None
+
+
 def route_request(strategy: str):
     """Send a test request through the gateway."""
     try:
@@ -265,7 +366,6 @@ st.markdown("""
 # Key Metrics Row
 col1, col2, col3, col4 = st.columns(4)
 
-# Simulated metrics for demo
 metrics_data = {
     "total_requests": random.randint(10000, 50000),
     "requests_delta": round(random.uniform(-5, 15), 1),
@@ -324,12 +424,11 @@ with col4:
 st.markdown("<hr style='border-color: var(--border); margin: 1.5rem 0;'>", unsafe_allow_html=True)
 
 # Tabs
-tab1, tab2, tab3, tab4 = st.tabs(["Performance", "Servers", "Routing", "Predictions"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["Performance", "Servers", "Routing", "Predictions", "Live Control"])
 
 with tab1:
     st.subheader("Performance Metrics")
 
-    # Generate sample data
     time_range = pd.date_range(end=datetime.now(), periods=24, freq='H')
     perf_data = pd.DataFrame({
         'time': time_range,
@@ -481,7 +580,6 @@ with tab3:
                 st.success(f"Request routed to {result.get('server', 'unknown')}")
             else:
                 st.warning("Gateway not reachable - showing demo data")
-                st.info("Demo: Would route to server-1 using Round Robin")
 
 with tab4:
     st.subheader("AI Predictions")
@@ -560,6 +658,120 @@ with tab4:
         )
         st.plotly_chart(fig_anomaly, use_container_width=True)
 
+# LIVE DEMO CONTROL PANEL
+with tab5:
+    st.subheader("Live Demo Control Panel")
+
+    # Create two tabs: Presets and Manual
+    ctrl_tab1, ctrl_tab2 = st.tabs(["Presets", "Manual"])
+
+    with ctrl_tab1:
+        st.markdown('<p class="section-title">Automated Demo Scenarios</p>', unsafe_allow_html=True)
+
+        col_preset1, col_preset2, col_preset3 = st.columns(3)
+
+        with col_preset1:
+            st.markdown("""
+            <div class="control-section" style="border-color: var(--success);">
+                <h3 style="color: var(--success); margin-bottom: 0.5rem;">Black Friday Rush</h3>
+                <p style="color: var(--text-secondary); font-size: 0.875rem;">Massive ramp pattern simulating 10,000+ RPS</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Activate", key="black_friday", use_container_width=True):
+                result = set_traffic("ramp", 10000)
+                if result:
+                    st.success("Black Friday Rush activated!")
+                else:
+                    st.info("Demo mode: Would set ramp to 10,000 RPS")
+
+        with col_preset2:
+            st.markdown("""
+            <div class="control-section" style="border-color: var(--error);">
+                <h3 style="color: var(--error); margin-bottom: 0.5rem;">DDoS Attack</h3>
+                <p style="color: var(--text-secondary); font-size: 0.875rem;">Severe erratic spikes + auto chaos injection</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Simulate", key="ddos", use_container_width=True):
+                set_traffic("spike", 8000)
+                inject_chaos()
+                st.warning("DDoS simulation + chaos injection triggered!")
+
+        with col_preset3:
+            st.markdown("""
+            <div class="control-section">
+                <h3 style="color: var(--text-primary); margin-bottom: 0.5rem;">Normal Operations</h3>
+                <p style="color: var(--text-secondary); font-size: 0.875rem;">Reset to constant baseline at 100 RPS</p>
+            </div>
+            """, unsafe_allow_html=True)
+            if st.button("Reset", key="normal", use_container_width=True):
+                result = set_traffic("constant", 100)
+                if result:
+                    st.success("Normal operations restored!")
+                else:
+                    st.info("Demo mode: Would reset to 100 RPS constant")
+
+    with ctrl_tab2:
+        st.markdown('<p class="section-title">Deep Control</p>', unsafe_allow_html=True)
+
+        # Routing Strategy
+        st.markdown('<p style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 1rem;">ROUTING STRATEGY</p>', unsafe_allow_html=True)
+        strategy_manual = st.selectbox(
+            "Select Load Balancing Strategy",
+            ["round_robin", "least_connections", "ai_powered"],
+            format_func=lambda x: x.replace("_", " ").title(),
+            label_visibility="collapsed"
+        )
+        if st.button("Apply Strategy", use_container_width=True):
+            result = set_strategy(strategy_manual)
+            if result:
+                st.success(f"Strategy set to {strategy_manual}")
+            else:
+                st.info(f"Demo: Would set strategy to {strategy_manual}")
+
+        # Traffic Intensity
+        st.markdown('<p style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 1.5rem;">TRAFFIC INTENSITY (RPS)</p>', unsafe_allow_html=True)
+        intensity = st.slider("", 10, 10000, 100, label_visibility="collapsed")
+        st.caption(f"Current: {intensity} requests per second")
+
+        # Traffic Shape
+        st.markdown('<p style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 1rem;">TRAFFIC SHAPE</p>', unsafe_allow_html=True)
+        shape = st.selectbox(
+            "Select Traffic Pattern",
+            ["constant", "ramp", "spike", "sine_wave", "burst"],
+            format_func=lambda x: x.replace("_", " ").title(),
+            label_visibility="collapsed"
+        )
+
+        # Apply button
+        if st.button("Apply Traffic Settings", type="primary", use_container_width=True):
+            result = set_traffic(shape, intensity)
+            if result:
+                st.success(f"Traffic set: {shape} at {intensity} RPS")
+            else:
+                st.info(f"Demo: Would set {shape} at {intensity} RPS")
+
+        st.markdown("<hr style='border-color: var(--border); margin: 2rem 0;'>", unsafe_allow_html=True)
+
+        # CHAOS INJECTION
+        st.markdown("""
+        <div class="control-section chaos-button">
+            <h3 style="color: var(--error); margin-bottom: 0.5rem;">⚠ Chaos Testing</h3>
+            <p style="color: var(--text-secondary); font-size: 0.875rem;">
+                Kill a random backend container to test system recovery.
+                The load balancer will automatically route traffic to healthy servers.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if st.button("Inject Chaos (Kill Server)", key="chaos", use_container_width=True):
+            with st.spinner("Killing random backend container..."):
+                result = inject_chaos()
+                if result and result.get("success"):
+                    st.error(f"Container {result.get('container_killed')} killed!")
+                    st.info("Load balancer should now route to healthy servers only.")
+                else:
+                    st.warning("Demo mode: Would kill a random backend container")
+
 # Sidebar
 with st.sidebar:
     st.title("Settings")
@@ -568,13 +780,14 @@ with st.sidebar:
     auto_refresh = st.checkbox("Auto-refresh (5s)", value=True)
     refresh_interval = 5 if auto_refresh else 0
 
-    st.subheader("Load Generator")
-    traffic_pattern = st.selectbox(
-        "Traffic Pattern",
-        ["Constant", "Ramp", "Spike", "Sine Wave"],
-        index=0
-    )
-    target_rate = st.slider("Target Rate (req/s)", 10, 500, 100)
+    st.subheader("System Status")
+    status = get_orchestrator_status()
+    if status:
+        st.info(f"Pattern: {status.get('traffic_pattern', 'N/A')}")
+        st.info(f"Strategy: {status.get('routing_strategy', 'N/A')}")
+        st.info(f"Intensity: {status.get('traffic_intensity', 'N/A')} RPS")
+    else:
+        st.warning("Orchestrator not reachable")
 
     st.subheader("Display")
     chart_points = st.slider("Chart Data Points", 10, 100, 50)

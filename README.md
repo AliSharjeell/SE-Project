@@ -12,166 +12,187 @@
 
 ---
 
-## System Capabilities
+## System Architecture
 
-### Traffic Generator
-- Generate requests with **5 patterns**: Constant, Ramp, Spike, Sine Wave, Burst
-- Simulates realistic user traffic at varying rates
-- Configurable base and max rates
+### Monolithic (Original)
+```
+python infra_tui.py          # Interactive TUI
+python main.py               # CLI simulation
+streamlit run src/dashboard/app.py  # Dashboard
+```
 
-### Load Balancer
-- **Round Robin**: Sequential request distribution
-- **Least Connections**: Routes to server with fewest active connections
-- **AI-Powered**: ML-predicted health scores for intelligent routing
-- Add/remove servers dynamically
-
-### Auto-Scaler
-- Predictive scaling based on CPU thresholds
-- Scale Up: CPU > 70% (default)
-- Scale Down: CPU < 30% (default)
-- Configurable cooldown periods (60s up, 120s down)
-- Server limits: 1-10 (configurable)
-
-### ML Traffic Predictor
-- Random Forest-based forecasting
-- 10-minute prediction horizon
-- 95% confidence intervals
-- Feature importance analysis
-
-### ML Anomaly Detector
-- Isolation Forest algorithm
-- Detects abnormal CPU, response time, connections
-- Real-time scoring
-
-### Monitoring System
-- Real-time metrics collection
-- CPU, Memory, Response Time, Active Connections
-- Statistics: Average, Max, Min, Percentiles (P50, P90, P95, P99)
+### Microservices (Docker-based)
+```
+docker-compose up            # Full stack with 7 containers
+```
 
 ---
 
-## User Interfaces
+## Docker Microservices Architecture
 
-### Interactive TUI (`python infra_tui.py`)
-Full-featured terminal interface with 8 options:
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              docker-compose.yml                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+           │                    │                    │                   │
+           ▼                    ▼                    ▼                   ▼
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────┐
+│   backend-1      │  │   backend-2      │  │   backend-3      │  │ gateway  │
+│   (FastAPI)      │  │   (FastAPI)      │  │   (FastAPI)      │  │  (LB)    │
+│   0.25 CPU       │  │   0.25 CPU       │  │   0.25 CPU       │  │ 0.5 CPU  │
+└──────────────────┘  └──────────────────┘  └──────────────────┘  └──────────┘
+                                                                    │
+           ┌─────────────────────────────────────────────────────────┘
+           ▼
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│   ml-service     │  │   autoscaler     │  │   dashboard     │
+│   (Scikit-learn) │  │   (Docker SDK)   │  │   (Streamlit)    │
+│   0.5 CPU        │  │   0.25 CPU       │  │   0.5 CPU       │
+└──────────────────┘  └──────────────────┘  └──────────────────┘
+```
 
-| Option | Feature |
-|--------|---------|
-| **1** | Traffic Generator - Generate test requests |
-| **2** | Load Balancer - Route requests with 3 strategies |
-| **3** | Auto-Scaler - View config & test scaling decisions |
-| **4** | ML Predictions - Train model & predict traffic |
-| **5** | Anomaly Detection - Detect abnormal behavior |
-| **6** | System Metrics - View collected metrics history |
-| **7** | Auto-Simulation - Step-through simulation |
-| **8** | Full Demo - Complete system demonstration |
+---
 
-### Streamlit Dashboard (`streamlit run src/dashboard/app.py`)
+## Services
 
-| Section | Features |
-|---------|----------|
-| **Overview** | System status cards, active servers, traffic rate |
-| **Real-time Metrics** | CPU/Memory charts, Response Time, Connections |
-| **Load Balancer** | Strategy distribution, Server selection pie chart |
-| **AI Predictions** | Predicted vs Actual traffic, Confidence intervals |
-| **Auto-Scaling** | Server count history, Scaling events timeline |
-| **Comparison** | Strategy performance metrics comparison |
+### Backend Servers
+- **3 FastAPI instances** for request processing
+- Resource limits: 0.25 CPU, 128MB RAM per container
+- Endpoints: `/health`, `/process`, `/metrics`
 
-Dashboard features:
-- Dark/Light theme toggle
-- Auto-refresh (5s interval)
-- Load scenario selection
-- Configurable alert thresholds
+### Gateway (Load Balancer)
+- **Round Robin**: Sequential rotation through servers
+- **Least Connections**: Routes to server with fewest connections
+- **AI-Powered**: Weighted selection based on health scores
+- Port: 8000
+
+### ML Service
+- **TrafficPredictor**: Random Forest-based traffic forecasting
+- **AnomalyDetector**: Isolation Forest for anomaly detection
+- CPU-only inference (Scikit-learn, no GPU required)
+- Port: 8001
+
+### Auto-Scaler
+- Docker SDK-based container management
+- Threshold-based scaling: CPU > 70% (scale up), CPU < 30% (scale down)
+- 60-second cooldown between scaling actions
+- Dynamic server registration with gateway
+
+### Dashboard (Streamlit)
+- Real-time metrics visualization
+- Apple/Linear-inspired dark theme
+- Live Demo Control Panel with Presets and Manual modes
+- Port: 8501
 
 ---
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Monolithic Mode (Original)
 ```bash
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 2. Run Interactive TUI
-```bash
+# Interactive TUI
 python infra_tui.py
-```
 
-### 3. Run Unit Tests
-```bash
-pytest tests/ -v
-```
-**85 tests** covering all components.
-
-### 4. Run Simulation via CLI
-```bash
-# Basic simulation
-python main.py
-
-# With custom scenario
+# CLI Simulation
 python main.py --scenario spike --iterations 50
 
-# With debugging
-python main.py --log-level DEBUG
+# Streamlit Dashboard (original)
+streamlit run src/dashboard/app.py
 ```
 
-### 5. Launch Streamlit Dashboard
+### 2. Docker Mode (Microservices)
 ```bash
-streamlit run src/dashboard/app.py
+# Build and start all services
+docker-compose up --build
+
+# Access points:
+# - Gateway API:    http://localhost:8000
+# - ML Service:     http://localhost:8001
+# - Dashboard:      http://localhost:8501
+
+# Stop services
+docker-compose down
+```
+
+### 3. Run Tests
+```bash
+pytest tests/ -v
 ```
 
 ---
 
-## Project Structure
+## API Endpoints
 
-```
-.
-├── infra_tui.py               # Interactive TUI (recommended)
-├── test_tui.py                # Component testing TUI
-├── main.py                    # CLI simulation runner
-├── requirements.txt           # Core dependencies
-├── requirements-dashboard.txt  # Dashboard dependencies
-├── configs/config.yaml        # System configuration
-├── src/
-│   ├── orchestrator.py         # System coordinator
-│   ├── components/
-│   │   ├── traffic_generator.py   # Traffic simulation
-│   │   ├── monitoring_system.py  # Metrics collection
-│   │   ├── load_balancer.py        # 3 routing strategies
-│   │   ├── auto_scaler.py          # Predictive scaling
-│   │   └── backend_server.py       # Server simulation
-│   ├── models/
-│   │   ├── traffic_predictor.py    # ML traffic forecasting
-│   │   └── anomaly_detector.py     # Anomaly detection
-│   └── dashboard/app.py             # Streamlit dashboard
-└── tests/
-    ├── test_components.py     # Component tests (42 tests)
-    └── test_models.py         # ML model tests (43 tests)
-```
+### Gateway (Port 8000)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/route` | Route request via specified strategy |
+| GET | `/servers` | List all registered servers |
+| POST | `/servers/register` | Register a new server |
+| DELETE | `/servers/{id}` | Remove a server |
+| GET | `/stats` | Routing statistics |
+| GET | `/health` | Gateway health check |
+
+### ML Service (Port 8001)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/predict/traffic` | Traffic prediction with confidence intervals |
+| POST | `/detect/anomaly` | Anomaly detection on metrics |
+| GET | `/model/info` | Model metadata and feature importance |
+| GET | `/health` | Service health check |
+
+### Orchestrator (Live Demo Control)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/set_traffic` | Set traffic pattern and intensity |
+| POST | `/api/set_strategy` | Set load balancing strategy |
+| POST | `/api/inject_chaos` | Kill a backend container (chaos testing) |
+| GET | `/api/status` | Current system status |
+
+---
+
+## Traffic Patterns
+
+| Pattern | Description |
+|---------|-------------|
+| `constant` | Fixed request rate |
+| `ramp` | Gradual increase/decrease |
+| `spike` | Sudden burst of traffic |
+| `sine_wave` | Periodic oscillations |
+| `burst` | Multiple simultaneous requests |
+
+---
+
+## Routing Strategies
+
+| Strategy | Algorithm |
+|----------|-----------|
+| `round_robin` | Sequential rotation |
+| `least_connections` | Fewest active connections |
+| `ai_powered` | Health-score weighted selection |
 
 ---
 
 ## Configuration
 
-Edit `configs/config.yaml`:
-
+### Docker Compose Resource Limits
 ```yaml
-traffic_generator:
-  base_rate: 10
-  max_rate: 100
-
-auto_scaler:
-  min_servers: 1
-  max_servers: 10
-  scale_up_threshold: 70.0
-  scale_down_threshold: 30.0
-
-ai_prediction:
-  predictor:
-    n_estimators: 100
-  anomaly_detector:
-    method: "isolation_forest"
+deploy:
+  resources:
+    limits:
+      cpus: '0.25'      # 25% of one CPU core
+      memory: 128M       # 128MB RAM
 ```
+
+### Auto-Scaler Thresholds
+- Scale Up: CPU > 70%
+- Scale Down: CPU < 30%
+- Min Servers: 1
+- Max Servers: 10
+- Cooldown: 60 seconds
 
 ---
 
@@ -179,12 +200,37 @@ ai_prediction:
 
 | Component | Technology |
 |-----------|------------|
-| Language | Python 3.10+ |
-| ML | Scikit-learn |
-| Data | Pandas, NumPy |
+| API Framework | FastAPI |
+| Containerization | Docker, Docker Compose |
+| ML (CPU-only) | Scikit-learn |
+| Data Processing | Pandas, NumPy |
 | Dashboard | Streamlit, Plotly |
 | Testing | Pytest |
-| Backend | Flask |
+| Orchestration | Python |
+
+---
+
+## Project Structure
+
+```
+.
+├── docker-compose.yml         # Microservices orchestration
+├── infra_tui.py              # Interactive TUI (original)
+├── main.py                   # CLI simulation (original)
+├── requirements.txt           # Core dependencies
+├── src/                      # Original monolithic source
+│   ├── components/           # System components
+│   ├── models/              # ML models
+│   ├── dashboard/           # Original Streamlit
+│   └── orchestrator.py      # System coordinator
+├── services/                # Microservices
+│   ├── backend/             # FastAPI backend servers
+│   ├── gateway/             # Load balancer gateway
+│   ├── ml-service/          # ML prediction service
+│   ├── autoscaler/          # Docker SDK auto-scaler
+│   └── dashboard/           # Streamlit dashboard
+└── tests/                   # Unit tests (85 tests)
+```
 
 ---
 
@@ -198,15 +244,22 @@ ai_prediction:
 
 ---
 
-## Expected Outcomes
+## Live Demo Control Panel
 
-This project demonstrates:
+The Streamlit dashboard includes a **Live Demo Control Panel** with two modes:
 
-1. **Comparison of Load Balancing Strategies** - Traditional vs AI-powered routing
-2. **ML-Based Traffic Prediction** - Forecasting with confidence intervals
-3. **Anomaly Detection** - Identifying abnormal server behavior
-4. **Predictive Auto-Scaling** - Proactive resource management
-5. **Real-time Visualization** - Dashboard and TUI for system monitoring
+### Presets (Automated Demos)
+| Button | Effect |
+|--------|--------|
+| Black Friday Rush | Massive ramp pattern, 10,000+ RPS |
+| DDoS Attack | Severe erratic spikes, chaos injection |
+| Normal Operations | Reset to constant 100 RPS baseline |
+
+### Manual (Deep Control)
+- **Routing Strategy**: Dropdown to switch between Round Robin, Least Connections, AI-Powered
+- **Traffic Intensity**: Slider from 10 to 10,000 RPS
+- **Traffic Shape**: Dropdown for constant, ramp, spike, sine_wave
+- **Inject Chaos**: Kill a random backend container to test system recovery
 
 ---
 

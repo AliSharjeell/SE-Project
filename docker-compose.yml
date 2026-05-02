@@ -157,6 +157,29 @@ services:
     networks:
       - app-network
 
+  # Orchestrator - Live Demo Control API
+  orchestrator:
+    build:
+      context: ./services/orchestrator
+      dockerfile: Dockerfile
+    container_name: orchestrator
+    hostname: orchestrator
+    ports:
+      - "8002:8002"
+    environment:
+      - GATEWAY_URL=http://gateway:8000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - gateway
+    deploy:
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - app-network
+
   # Streamlit Dashboard
   dashboard:
     build:
@@ -169,6 +192,7 @@ services:
     environment:
       - GATEWAY_URL=http://gateway:8000
       - ML_SERVICE_URL=http://ml-service:8000
+      - ORCHESTRATOR_URL=http://orchestrator:8002
     depends_on:
       - gateway
       - ml-service
