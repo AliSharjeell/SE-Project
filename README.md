@@ -16,9 +16,17 @@
 
 ### 1. Install Docker (Windows)
 
-If you have nothing installed, you need Docker Desktop:
+If you have nothing installed, you need Docker Desktop. Choose one method:
 
-**Step 1:** Download from https://www.docker.com/products/docker-desktop/
+**Option A: Winget (Recommended - Command Line)**
+Open PowerShell and run:
+```powershell
+winget install Docker.DockerDesktop
+```
+
+**Option B: Manual Download**
+1. Download from https://www.docker.com/products/docker-desktop/
+2. Run the installer (`Docker Desktop Installer.exe`)
 
 **Step 2:** Enable WSL 2 (required for Windows). Open PowerShell as Administrator and run:
 ```powershell
