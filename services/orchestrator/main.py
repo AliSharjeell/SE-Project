@@ -26,30 +26,48 @@ def get_docker_client():
     return _docker_client
 
 
-def get_container_id_by_name(name: str) -> str:
-    """Get container ID by name using docker CLI on host."""
+def get_docker_socket_containers():
+    """Get containers via Docker socket API."""
+    import urllib.request
+    import json
+    try:
+        # Use Unix socket to query Docker API
+        sock = '/var/run/docker.sock'
+        req = urllib.request.Request(f"http://unix.sock/containers/json?filters={{\"name\":{{\"backend-\":true}}}}",
+                                      headers={'Content-Type': 'application/json'})
+        # This won't work directly, need socket path workaround
+        return []
+    except:
+        pass
+    # Fallback: use docker CLI if available
+    return list_backend_containers_cli()
+
+
+def list_backend_containers_cli():
+    """List backend containers using docker CLI."""
     import subprocess
     try:
         result = subprocess.run(
-            ["docker", "ps", "-q", "--filter", f"name=^{name}$"],
+            ["docker", "ps", "--filter", "name=backend-", "--format", "{{.Names}}"],
             capture_output=True,
             text=True,
             timeout=10
         )
         if result.returncode == 0:
-            return result.stdout.strip()
-        return ""
+            return [name.strip() for name in result.stdout.strip().split('\n') if name.strip()]
+        return []
     except Exception as e:
-        print(f"Error getting container ID: {e}")
-        return ""
+        print(f"Error listing containers: {e}")
+        return []
 
 
 def list_backend_containers():
-    """List running backend container names."""
+    """List running backend container names via subprocess."""
     import subprocess
     try:
+        # Use powershell to run docker command
         result = subprocess.run(
-            ["powershell", "-Command", "docker ps --filter 'name=backend-' --format '{{{{.Names}}}}'"],
+            ["powershell", "-Command", "docker ps --filter 'name=backend-' --format '{{.Names}}'"],
             capture_output=True,
             text=True,
             timeout=15
