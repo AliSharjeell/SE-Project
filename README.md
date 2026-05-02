@@ -298,22 +298,6 @@ docker compose down -v
 
 ---
 
-### 🧠 Developer Guide: Model Training
-
-*Note: The ML service uses pre-trained Scikit-learn models to ensure high performance on devices without dedicated GPUs. If you wish to retrain the models with new traffic data, run outside Docker.*
-
-**1. Install Local Dependencies:**
-```bash
-pip install -r requirements.txt
-```
-
-**2. Train the Models:**
-```bash
-pytest tests/ -v   # Run 85 unit tests
-```
-
----
-
 ## Services
 
 ---
