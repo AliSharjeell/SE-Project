@@ -98,7 +98,8 @@ The dashboard provides:
 ```
 .
 ├── main.py                    # Entry point
-├── test_tui.py                # Interactive testing TUI
+├── infra_tui.py               # Full interactive TUI (main interface)
+├── test_tui.py                # TUI testing interface
 ├── requirements.txt           # Core dependencies
 ├── requirements-dashboard.txt # Dashboard dependencies
 ├── configs/
@@ -196,7 +197,13 @@ Options:
 
 ## Testing
 
-### TUI Tests (Interactive)
+### Interactive TUI (Full System)
+```bash
+python infra_tui.py
+```
+8 menu options: Traffic Generator, Load Balancer, Auto-Scaler, ML Predictions, Anomaly Detection, System Metrics, Auto-Simulation, Full Demo
+
+### TUI Tests (Component Testing)
 ```bash
 python test_tui.py
 ```
