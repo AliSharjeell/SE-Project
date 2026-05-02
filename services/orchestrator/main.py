@@ -33,6 +33,23 @@ state = {
     "last_chaos": None,
 }
 
+# Event log (last 50 events)
+event_log = []
+MAX_EVENTS = 50
+
+def log_event(event_type: str, message: str, details: dict = None):
+    """Log a system event to the audit trail."""
+    import threading
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "type": event_type,
+        "message": message,
+        "details": details or {},
+    }
+    event_log.append(entry)
+    if len(event_log) > MAX_EVENTS:
+        event_log.pop(0)
+
 
 class TrafficConfig(BaseModel):
     pattern: str  # constant, ramp, spike, sine_wave, burst
@@ -79,6 +96,7 @@ async def set_traffic(config: TrafficConfig):
 
     state["traffic_pattern"] = config.pattern
     state["traffic_intensity"] = config.intensity
+    log_event("traffic_change", f"Traffic pattern set to {config.pattern}", {"pattern": config.pattern, "intensity": config.intensity})
 
     return {
         "success": True,
@@ -99,6 +117,7 @@ async def set_strategy(config: StrategyConfig):
         )
 
     state["routing_strategy"] = config.strategy
+    log_event("strategy_change", f"Routing strategy changed to {config.strategy}", {"strategy": config.strategy})
 
     return {
         "success": True,
@@ -141,6 +160,7 @@ async def inject_chaos():
             "container": container_name,
             "timestamp": datetime.now().isoformat(),
         }
+        log_event("chaos_injection", f"Container {container_name} terminated for chaos testing", {"container": container_name})
 
         return ChaosResult(
             success=True,
@@ -164,6 +184,13 @@ async def inject_chaos():
 async def health():
     """Health check."""
     return {"status": "healthy", "service": "orchestrator"}
+
+
+@app.get("/api/events")
+async def get_events(limit: int = 10):
+    """Get recent system events for audit log."""
+    events = event_log[-limit:] if limit <= len(event_log) else event_log
+    return {"events": events, "total": len(event_log)}
 
 
 if __name__ == "__main__":
