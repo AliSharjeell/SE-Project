@@ -62,38 +62,113 @@ def list_backend_containers_cli():
 
 
 def list_backend_containers():
-    """List running backend container names via subprocess."""
-    import subprocess
+    """List running backend containers via Docker socket."""
+    import http.client
+    import json
+    import socket
+
     try:
-        # Use powershell to run docker command
-        result = subprocess.run(
-            ["powershell", "-Command", "docker ps --filter 'name=backend-' --format '{{.Names}}'"],
-            capture_output=True,
-            text=True,
-            timeout=15
-        )
-        if result.returncode == 0:
-            names = [n.strip() for n in result.stdout.strip().split('\n') if n.strip()]
-            return names
+        # Connect to Docker socket using socket module
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(10)
+        sock.connect('/var/run/docker.sock')
+
+        # Send HTTP request to Docker API
+        request = b"GET /containers/json?all=true HTTP/1.1\r\nHost:\r\n\r\n"
+        sock.sendall(request)
+
+        # Receive response
+        response = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            response += chunk
+            if b"\r\n\r\n" in response:
+                break
+
+        sock.close()
+
+        # Parse JSON from response
+        if b"200 OK" in response:
+            # Find JSON body
+            json_start = response.find(b'\r\n\r\n') + 4
+            json_body = response[json_start:]
+
+            containers = json.loads(json_body.decode('utf-8', errors='ignore'))
+            backend_containers = [c['Names'][0].lstrip('/') for c in containers
+                                  if any(c['Names'][i].startswith('/backend-') for i in range(len(c['Names'])))
+                                  and c['State'] == 'running']
+            return backend_containers
         return []
+
     except Exception as e:
-        print(f"Error listing containers: {e}")
+        print(f"Docker socket error: {e}")
         return []
 
 
 def kill_container(name: str) -> bool:
-    """Kill a container by name."""
-    import subprocess
+    """Kill a container by name via Docker socket."""
+    import http.client
+    import json
+    import socket
+
     try:
-        result = subprocess.run(
-            ["powershell", "-Command", f"docker kill {name}"],
-            capture_output=True,
-            text=True,
-            timeout=15
-        )
-        return result.returncode == 0
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(10)
+        sock.connect('/var/run/docker.sock')
+
+        # Find container ID first
+        list_req = b"GET /containers/json?all=true HTTP/1.1\r\nHost:\r\n\r\n"
+        sock.sendall(list_req)
+
+        response = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            response += chunk
+            if b"\r\n\r\n" in response:
+                break
+        sock.close()
+
+        if b"200 OK" not in response:
+            return False
+
+        json_start = response.find(b'\r\n\r\n') + 4
+        containers = json.loads(response[json_start:].decode('utf-8', errors='ignore'))
+
+        container_id = None
+        for c in containers:
+            if any(name in n for n in c['Names']):
+                container_id = c['Id']
+                break
+
+        if not container_id:
+            return False
+
+        # Send kill request
+        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sock.settimeout(10)
+        sock.connect('/var/run/docker.sock')
+
+        kill_req = f"POST /containers/{container_id}/kill HTTP/1.1\r\nHost:\r\n\r\n"
+        sock.sendall(kill_req.encode())
+
+        response = b""
+        while True:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            response += chunk
+            if b"\r\n\r\n" in response:
+                break
+        sock.close()
+
+        return b"204 No Content" in response or b"200 OK" in response
+
     except Exception as e:
-        print(f"Error killing container: {e}")
+        print(f"Docker socket kill error: {e}")
         return False
 
 # State
