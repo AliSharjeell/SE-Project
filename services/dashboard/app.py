@@ -367,7 +367,7 @@ with chart_col:
                       annotation_font_color="#ff453a", annotation_font_size=10)
     fig_lat.update_layout(
         paper_bgcolor='white', plot_bgcolor='white',
-        font=dict(color='#ffffff', family='Inter'),
+        font=dict(color='#000000', family='Inter'),
         margin=dict(l=30, r=20, t=20, b=30),
         showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         height=200,
@@ -384,7 +384,7 @@ with chart_col:
     ))
     fig_through.update_layout(
         paper_bgcolor='white', plot_bgcolor='white',
-        font=dict(color='#ffffff', family='Inter'),
+        font=dict(color='#000000', family='Inter'),
         margin=dict(l=30, r=20, t=20, b=30),
         showlegend=False, height=200,
         xaxis=dict(showgrid=True, gridcolor='#2c2c2e'),
@@ -459,7 +459,7 @@ with pred_col1:
                                    fill='tonexty', fillcolor='rgba(10,132,255,0.1)'))
     fig_pred.update_layout(
         paper_bgcolor='white', plot_bgcolor='white',
-        font=dict(color='#ffffff', family='Inter'),
+        font=dict(color='#000000', family='Inter'),
         margin=dict(l=30, r=20, t=20, b=30),
         height=180,
         xaxis=dict(showgrid=True, gridcolor='#2c2c2e'),
@@ -495,7 +495,7 @@ with pred_col2:
     fig_anomaly.add_trace(go.Bar(x=anomaly_data['Time'], y=anomaly_data['Score'], marker_color=colors))
     fig_anomaly.update_layout(
         paper_bgcolor='white', plot_bgcolor='white',
-        font=dict(color='#ffffff', family='Inter'),
+        font=dict(color='#000000', family='Inter'),
         margin=dict(l=30, r=20, t=20, b=30),
         height=180,
         xaxis=dict(showgrid=True, gridcolor='#2c2c2e'),
