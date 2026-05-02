@@ -221,11 +221,6 @@ def render_sidebar():
     """Render sidebar configuration controls."""
     st.sidebar.title("Dashboard Settings")
 
-    # Theme toggle
-    theme = st.sidebar.toggle("Dark Mode", value=False)
-    if theme:
-        st.config.set_option("theme.base", "dark")
-
     # Refresh settings
     st.sidebar.subheader("Refresh Settings")
     auto_refresh = st.sidebar.checkbox("Auto-refresh (5s)", value=True)
@@ -689,9 +684,10 @@ def main():
     # Update metrics
     update_metrics()
 
-    # Auto refresh
+    # Manual refresh with button
     if auto_refresh:
-        st.autorefresh(interval=refresh_interval * 1000, key="autorefresh")
+        if st.button("Refresh Metrics"):
+            st.rerun()
 
     # Render dashboard sections
     tab_overview, tab_metrics, tab_lb, tab_predictions, tab_scaling, tab_compare = st.tabs([
