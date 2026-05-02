@@ -587,18 +587,43 @@ with st.sidebar:
 
     # === PRESETS TAB ===
     if st.session_state.sidebar_tab == 'presets':
+        # Track current scenario
+        if 'current_scenario' not in st.session_state:
+            st.session_state.current_scenario = 'normal'
+
+        # Active scenario indicator
+        scenario_labels = {
+            'normal': '🟢 Normal Ops',
+            'black_friday': '🔥 Black Friday',
+            'ddos': '💀 DDoS Attack',
+            'sine_wave': '〰️ Sine Wave'
+        }
+        st.markdown(f"""
+        <div style="background: rgba(48,209,88,0.15); border: 1px solid rgba(48,209,88,0.3);
+                    border-radius: 8px; padding: 0.75rem; margin-bottom: 1rem; text-align: center;">
+            <div style="font-size: 0.7rem; color: var(--text-secondary);">Active Scenario</div>
+            <div style="font-size: 1rem; font-weight: 600; color: #30d158;">{scenario_labels.get(st.session_state.current_scenario, '🟢 Normal Ops')}</div>
+            <div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 4px;">
+                RPS: {orch_status.get('traffic_intensity', 0) if orch_status else 0}
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         st.markdown("#### Demo Scenarios")
 
         # Stack buttons vertically for clean alignment
-        if st.button("Black Friday Rush", use_container_width=True, key="bf_preset"):
+        if st.button("🔥 Black Friday Rush", use_container_width=True, key="bf_preset",
+                     type="primary" if st.session_state.current_scenario == 'black_friday' else "secondary"):
             # Aggressive ramp: spike to 12000 RPS
+            st.session_state.current_scenario = 'black_friday'
             if set_traffic("spike", 12000):
                 show_toast("Black Friday Rush - 12,000 RPS spike!")
             else:
                 show_toast("Traffic: SPIKE → 12,000 RPS", "📈")
-            st.rerun()
 
-        if st.button("DDoS Attack", use_container_width=True, key="ddos_preset"):
+        if st.button("💀 DDoS Attack", use_container_width=True, key="ddos_preset",
+                     type="primary" if st.session_state.current_scenario == 'ddos' else "secondary"):
+            st.session_state.current_scenario = 'ddos'
             # Violent DDoS: 10000 RPS burst + chaos injection
             set_traffic("burst", 10000)
             chaos_result = inject_chaos()
@@ -606,15 +631,18 @@ with st.sidebar:
                 show_toast(f"Container {chaos_result.get('container_killed')} killed!", "💥")
             else:
                 show_toast("DDoS: 10,000 RPS + chaos injection", "⚠️")
-            st.rerun()
 
-        if st.button("Normal Ops", use_container_width=True, key="normal_preset"):
+        if st.button("🔄 Normal Ops", use_container_width=True, key="normal_preset",
+                     type="primary" if st.session_state.current_scenario == 'normal' else "secondary"):
+            st.session_state.current_scenario = 'normal'
             if set_traffic("constant", 50):
                 show_toast("Normal operations - 50 RPS steady")
             else:
                 show_toast("Reset: 50 RPS", "🔄")
 
-        if st.button("Sine Wave", use_container_width=True, key="sine_preset"):
+        if st.button("〰️ Sine Wave", use_container_width=True, key="sine_preset",
+                     type="primary" if st.session_state.current_scenario == 'sine_wave' else "secondary"):
+            st.session_state.current_scenario = 'sine_wave'
             if set_traffic("sine_wave", 500):
                 show_toast("Sine wave pattern - 500 RPS", "〰️")
             else:
