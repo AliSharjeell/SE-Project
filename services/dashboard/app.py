@@ -308,6 +308,14 @@ def stop_traffic_generator():
     st.session_state['traffic_rps'] = 0
 
 
+def update_traffic_strategy(strategy: str):
+    """Update routing strategy on the running traffic generator."""
+    try:
+        requests.get(f"http://localhost:8502/strategy?strategy={strategy}", timeout=2)
+    except:
+        pass
+
+
 # ============================================
 # MAIN LAYOUT - Single Pane of Glass
 # ============================================
@@ -712,6 +720,7 @@ with st.sidebar:
                          type="primary" if st.session_state.current_strategy == 'round_robin' else "secondary",
                          key="strat_rr"):
                 set_strategy("round_robin")
+                update_traffic_strategy("round_robin")
                 st.session_state.current_strategy = 'round_robin'
                 st.session_state.strategy_chosen = True
                 show_toast("Round Robin - Even Distribution")
@@ -722,6 +731,7 @@ with st.sidebar:
                          type="primary" if st.session_state.current_strategy == 'least_connections' else "secondary",
                          key="strat_lc"):
                 set_strategy("least_connections")
+                update_traffic_strategy("least_connections")
                 st.session_state.current_strategy = 'least_connections'
                 st.session_state.strategy_chosen = True
                 show_toast("Least Connections - Smart Routing")
@@ -733,6 +743,7 @@ with st.sidebar:
                          type="primary" if st.session_state.current_strategy == 'ai_powered' else "secondary",
                          key="strat_ai"):
                 set_strategy("ai_powered")
+                update_traffic_strategy("ai_powered")
                 st.session_state.current_strategy = 'ai_powered'
                 st.session_state.strategy_chosen = True
                 show_toast("AI-Powered - ML-Based Routing")
@@ -743,6 +754,7 @@ with st.sidebar:
                          type="primary" if st.session_state.current_strategy == 'off' else "secondary",
                          key="strat_off"):
                 set_strategy("off")
+                update_traffic_strategy("off")
                 st.session_state.current_strategy = 'off'
                 st.session_state.strategy_chosen = True
                 show_toast("OFF - No Load Balancing")
@@ -768,6 +780,7 @@ with st.sidebar:
 
         if st.button("Apply Strategy", use_container_width=True):
             if set_strategy(strategy):
+                update_traffic_strategy(strategy)
                 show_toast(f"Strategy set to {strategy.replace('_', ' ').title()}")
             else:
                 show_toast(f"Strategy: {strategy.replace('_', ' ').title()}", "📡")
@@ -781,9 +794,12 @@ with st.sidebar:
                               format_func=lambda x: x.replace("_", " ").title())
 
         if st.button("Apply Traffic", use_container_width=True, type="primary"):
+            current_strat = orch_status.get('routing_strategy', 'ai_powered') if orch_status else 'ai_powered'
             if set_traffic(shape, intensity):
+                start_traffic_generator(intensity, current_strat)
                 show_toast(f"{shape.replace('_', ' ').title()} traffic at {intensity} RPS")
             else:
+                start_traffic_generator(intensity, current_strat)
                 show_toast(f"Setting: {shape} → {intensity} RPS", "🎯")
 
         st.markdown("---")
