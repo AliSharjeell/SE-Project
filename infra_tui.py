@@ -15,12 +15,7 @@ import numpy as np
 import pandas as pd
 from collections import deque
 
-try:
-    from blessed import Terminal
-    HAS_BLESSED = True
-except ImportError:
-    HAS_BLESSED = False
-    from curses import wrapper
+# No curses dependency - works on all platforms
 
 from components import TrafficGenerator, MonitoringSystem, LoadBalancer, AutoScaler
 from components.monitor import ServerMetrics
@@ -81,25 +76,25 @@ class InfrastructureTUI:
     def print_banner(self):
         """Print the main banner."""
         print(f"\n{Colors.CYAN}{Colors.BOLD}")
-        print("╔══════════════════════════════════════════════════════════════╗")
-        print("║     AI-Driven Infrastructure Manager - Interactive TUI         ║")
-        print("║     Intelligent Load Balancing & Auto-Scaling System         ║")
-        print("╚══════════════════════════════════════════════════════════════╝")
+        print("+==============================================================+")
+        print("|     AI-Driven Infrastructure Manager - Interactive TUI         |")
+        print("|     Intelligent Load Balancing & Auto-Scaling System         |")
+        print("+==============================================================+")
         print(f"{Colors.ENDC}\n")
 
     def print_menu(self):
         """Print the main menu."""
-        print(f"{Colors.BOLD}╔══════════════════════ MAIN MENU ══════════════════════╗{Colors.ENDC}")
-        print(f"{Colors.BOLD}║{Colors.ENDC}  {Colors.GREEN}[1]{Colors.ENDC} Traffic Generator    - Generate test traffic         {Colors.BOLD}║{Colors.ENDC}")
-        print(f"{Colors.BOLD}║{Colors.ENDC}  {Colors.GREEN}[2]{Colors.ENDC} Load Balancer       - Route requests manually      {Colors.BOLD}║{Colors.ENDC}")
-        print(f"{Colors.BOLD}║{Colors.ENDC}  {Colors.GREEN}[3]{Colors.ENDC} Auto-Scaler        - View/change scaling config    {Colors.BOLD}║{Colors.ENDC}")
-        print(f"{Colors.BOLD}║{Colors.ENDC}  {Colors.GREEN}[4]{Colors.ENDC} ML Predictions     - Train & predict traffic       {Colors.BOLD}║{Colors.ENDC}")
-        print(f"{Colors.BOLD}║{Colors.ENDC}  {Colors.GREEN}[5]{Colors.ENDC} Anomaly Detection  - Detect abnormal behavior     {Colors.BOLD}║{Colors.ENDC}")
-        print(f"{Colors.BOLD}║{Colors.ENDC}  {Colors.GREEN}[6]{Colors.ENDC} System Metrics     - View monitoring data         {Colors.BOLD}║{Colors.ENDC}")
-        print(f"{Colors.BOLD}║{Colors.ENDC}  {Colors.GREEN}[7]{Colors.ENDC} Auto-Simulation   - Run continuous simulation    {Colors.BOLD}║{Colors.ENDC}")
-        print(f"{Colors.BOLD}║{Colors.ENDC}  {Colors.GREEN}[8]{Colors.ENDC} Full Demo          - Run complete demonstration  {Colors.BOLD}║{Colors.ENDC}")
-        print(f"{Colors.BOLD}║{Colors.ENDC}  {Colors.YELLOW}[Q]{Colors.ENDC} Quit               - Exit the application         {Colors.BOLD}║{Colors.ENDC}")
-        print(f"{Colors.BOLD}╚══════════════════════════════════════════════════════════════╝{Colors.ENDC}\n")
+        print(f"{Colors.BOLD}+====================== MAIN MENU ======================+{Colors.ENDC}")
+        print(f"{Colors.BOLD}|{Colors.ENDC}  {Colors.GREEN}[1]{Colors.ENDC} Traffic Generator    - Generate test traffic         {Colors.BOLD}|{Colors.ENDC}")
+        print(f"{Colors.BOLD}|{Colors.ENDC}  {Colors.GREEN}[2]{Colors.ENDC} Load Balancer       - Route requests manually      {Colors.BOLD}|{Colors.ENDC}")
+        print(f"{Colors.BOLD}|{Colors.ENDC}  {Colors.GREEN}[3]{Colors.ENDC} Auto-Scaler        - View/change scaling config    {Colors.BOLD}|{Colors.ENDC}")
+        print(f"{Colors.BOLD}|{Colors.ENDC}  {Colors.GREEN}[4]{Colors.ENDC} ML Predictions     - Train & predict traffic       {Colors.BOLD}|{Colors.ENDC}")
+        print(f"{Colors.BOLD}|{Colors.ENDC}  {Colors.GREEN}[5]{Colors.ENDC} Anomaly Detection  - Detect abnormal behavior     {Colors.BOLD}|{Colors.ENDC}")
+        print(f"{Colors.BOLD}|{Colors.ENDC}  {Colors.GREEN}[6]{Colors.ENDC} System Metrics     - View monitoring data         {Colors.BOLD}|{Colors.ENDC}")
+        print(f"{Colors.BOLD}|{Colors.ENDC}  {Colors.GREEN}[7]{Colors.ENDC} Auto-Simulation   - Run continuous simulation    {Colors.BOLD}|{Colors.ENDC}")
+        print(f"{Colors.BOLD}|{Colors.ENDC}  {Colors.GREEN}[8]{Colors.ENDC} Full Demo          - Run complete demonstration  {Colors.BOLD}|{Colors.ENDC}")
+        print(f"{Colors.BOLD}|{Colors.ENDC}  {Colors.YELLOW}[Q]{Colors.ENDC} Quit               - Exit the application         {Colors.BOLD}|{Colors.ENDC}")
+        print(f"{Colors.BOLD}+==============================================================+{Colors.ENDC}\n")
 
     def traffic_generator_menu(self):
         """Traffic Generator submenu."""
