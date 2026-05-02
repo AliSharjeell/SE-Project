@@ -43,5 +43,8 @@ Thumbs.db
 .env.local
 *.log
 
+# Claude Code / OMC
+.omc/
+
 # Streamlit
 .streamlit/secrets.toml
