@@ -14,22 +14,6 @@
 
 ## System Architecture
 
-### Monolithic (Original)
-```
-python infra_tui.py          # Interactive TUI
-python main.py               # CLI simulation
-streamlit run src/dashboard/app.py  # Dashboard
-```
-
-### Microservices (Docker-based)
-```
-docker-compose up            # Full stack with 7 containers
-```
-
----
-
-## Docker Microservices Architecture
-
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              docker-compose.yml                               │
@@ -84,49 +68,16 @@ docker-compose up            # Full stack with 7 containers
 - Live Demo Control Panel with Presets and Manual modes
 - Port: 8501
 
----
-
-## Quick Start
-
-### 1. Monolithic Mode (Original)
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Interactive TUI
-python infra_tui.py
-
-# CLI Simulation
-python main.py --scenario spike --iterations 50
-
-# Streamlit Dashboard (original)
-streamlit run src/dashboard/app.py
-```
-
-### 2. Docker Mode (Microservices)
-```bash
-# Build and start all services
-docker-compose up --build
-
-# Access points:
-# - Gateway API:    http://localhost:8000
-# - ML Service:     http://localhost:8001
-# - Dashboard:      http://localhost:8501
-
-# Stop services
-docker-compose down
-```
-
-### 3. Run Tests
-```bash
-pytest tests/ -v
-```
+### Orchestrator (Live Demo Control)
+- API endpoints for traffic and strategy control
+- Chaos injection (kill containers via Docker SDK)
+- Port: 8002
 
 ---
 
-## API Endpoints
+## API Reference
 
-### Gateway (Port 8000)
+### Gateway - Load Balancer (Port 8000)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/route` | Route request via specified strategy |
@@ -144,13 +95,56 @@ pytest tests/ -v
 | GET | `/model/info` | Model metadata and feature importance |
 | GET | `/health` | Service health check |
 
-### Orchestrator (Live Demo Control)
+### Orchestrator - Live Demo Control (Port 8002)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/set_traffic` | Set traffic pattern and intensity |
 | POST | `/api/set_strategy` | Set load balancing strategy |
 | POST | `/api/inject_chaos` | Kill a backend container (chaos testing) |
 | GET | `/api/status` | Current system status |
+
+---
+
+## 🚀 How to Run the Project
+
+### Launch the Infrastructure (Docker)
+
+The entire system is containerized. To spin up the Load Balancer, ML Service, Backend Nodes, and the Streamlit Dashboard, simply run:
+
+```bash
+# Build and start the microservices network
+docker-compose up --build
+```
+
+**Access Points:**
+- **Live Dashboard (Control Panel):** http://localhost:8501
+- **Gateway API (Load Balancer):** http://localhost:8000
+- **ML Prediction Service:** http://localhost:8001
+
+To shut down the infrastructure and gracefully stop all nodes:
+```bash
+docker-compose down
+```
+
+---
+
+### 🧠 Developer Guide: Model Training
+
+*Note: The ML service uses pre-trained Scikit-learn models to ensure high performance on devices without dedicated GPUs. If you wish to retrain the models with new traffic data, run outside Docker.*
+
+**1. Install Local Dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+**2. Train the Models:**
+```bash
+pytest tests/ -v   # Run 85 unit tests
+```
+
+---
+
+## Services
 
 ---
 
