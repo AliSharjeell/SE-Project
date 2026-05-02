@@ -15,6 +15,8 @@ import pandas as pd
 
 from components import TrafficGenerator, MonitoringSystem, LoadBalancer, AutoScaler
 from components.monitor import ServerMetrics
+from components.load_balancer import BackendServer, LoadBalancerStrategy
+from components.auto_scaler import AutoScalerConfig
 from models import TrafficPredictor, AnomalyDetector
 from orchestrator import InfrastructureOrchestrator
 
@@ -107,29 +109,29 @@ def test_load_balancer():
     lb = LoadBalancer()
 
     print_info("Adding servers...")
-    lb.add_server({'id': 'server-1', 'host': '192.168.1.10', 'port': 8001})
-    lb.add_server({'id': 'server-2', 'host': '192.168.1.11', 'port': 8002})
-    lb.add_server({'id': 'server-3', 'host': '192.168.1.12', 'port': 8003})
+    lb.add_server(BackendServer(id='server-1', host='192.168.1.10', port=8001, cpu_usage=50.0, active_connections=10, avg_response_time=100.0))
+    lb.add_server(BackendServer(id='server-2', host='192.168.1.11', port=8002, cpu_usage=50.0, active_connections=10, avg_response_time=100.0))
+    lb.add_server(BackendServer(id='server-3', host='192.168.1.12', port=8003, cpu_usage=50.0, active_connections=10, avg_response_time=100.0))
 
     print_success(f"Added {len(lb.get_all_servers())} servers")
 
     print_info("Testing Round Robin (6 requests)...")
     for i in range(6):
-        server = lb.route_request('ROUND_ROBIN')
+        server = lb.route_request(LoadBalancerStrategy.ROUND_ROBIN)
         print(f"  Request {i+1} -> {server.id}")
 
     print_info("Testing Least Connections...")
     lb.update_server_metrics('server-2', {'active_connections': 100})
-    server = lb.route_request('LEAST_CONNECTIONS')
+    server = lb.route_request(LoadBalancerStrategy.LEAST_CONNECTIONS)
     print_success(f"Least Connections chose: {server.id} (should avoid server-2)")
 
     print_info("Testing AI-Powered routing...")
     scores = {'server-1': 0.9, 'server-2': 0.5, 'server-3': 0.8}
-    server = lb.route_request('AI_POWERED', prediction_scores=scores)
+    server = lb.route_request(LoadBalancerStrategy.AI_POWERED, prediction_scores=scores)
     print_success(f"AI-Powered chose: {server.id}")
 
-    stats = lb.get_all_stats()
-    print_success(f"Total routing decisions: {stats['total_requests']}")
+    servers = lb.get_all_servers()
+    print_success(f"Load balancer has {len(servers)} servers configured")
 
     return True
 
@@ -137,7 +139,8 @@ def test_load_balancer():
 def test_auto_scaler():
     print_header("Auto-Scaler Tests")
 
-    scaler = AutoScaler(min_servers=1, max_servers=10)
+    config = AutoScalerConfig(min_servers=1, max_servers=10)
+    scaler = AutoScaler(config=config)
 
     print_info("Testing scale-up decision...")
     action = scaler.make_scaling_decision(
@@ -162,7 +165,7 @@ def test_auto_scaler():
     print_success(f"Immediate 2nd scale-up: {action.action_type.value} (should be STABLE due to cooldown)")
 
     status = scaler.get_status()
-    print_success(f"Total scale-ups: {status['total_scale_ups']}, Total scale-downs: {status['total_scale_downs']}")
+    print_success(f"Total scale-ups: {status['statistics']['total_scale_ups']}, Total scale-downs: {status['statistics']['total_scale_downs']}")
 
     return True
 
@@ -252,15 +255,15 @@ def test_orchestrator():
         print_success("Orchestrator initialized")
 
         status = orch.get_system_status()
-        print_success(f"Status: initialized={status['initialized']}")
-        print_success(f"Components: traffic_generator={status['components']['traffic_generator']}")
+        print_success(f"Status: initialized={status.is_initialized}")
+        print_success(f"Components: traffic_generator={status.traffic_generator}")
 
         print_info("Running one iteration...")
         result = orch.run_iteration()
-        print_success(f"Iteration complete: iterations_run={result['iteration']}")
+        print_success(f"Iteration complete: iterations_run={result.iteration}")
 
         status = orch.get_system_status()
-        print_success(f"Servers: {status['server_count']}, Active: {status['initialized']}")
+        print_success(f"Servers: {status.auto_scaler.get('current_servers', 'N/A')}, Active: {status.is_initialized}")
 
         orch.stop()
         print_success("Orchestrator stopped cleanly")
@@ -286,8 +289,8 @@ def run_simulation_demo():
         cpu = metrics.get('cpu_usage', 0)
         rt = metrics.get('response_time', 0)
 
-        cpu_bar = '█' * int(cpu / 5) + '░' * (20 - int(cpu / 5))
-        rt_bar = '█' * int(rt / 10) + '░' * (20 - int(rt / 10))
+        cpu_bar = '=' * int(cpu / 5) + '-' * (20 - int(cpu / 5))
+        rt_bar = '=' * int(rt / 10) + '-' * (20 - int(rt / 10))
 
         print(f"  Iter {i+1:2d} | CPU: {cpu:5.1f}% [{cpu_bar}] | RT: {rt:6.1f}ms [{rt_bar}]")
 
@@ -301,9 +304,9 @@ def run_simulation_demo():
 
 def main():
     print(f"{Colors.BOLD}")
-    print("╔══════════════════════════════════════════════════════════════╗")
-    print("║     AI-Driven Infrastructure Manager - TUI Testing Suite    ║")
-    print("╚══════════════════════════════════════════════════════════════╝")
+    print("+================================================================+")
+    print("|     AI-Driven Infrastructure Manager - TUI Testing Suite      |")
+    print("+================================================================+")
     print(f"{Colors.ENDC}")
 
     tests = [
