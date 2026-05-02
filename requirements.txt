@@ -1,0 +1,25 @@
+# AI-Driven Infrastructure Manager - Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core
+numpy>=1.24.0
+pandas>=2.0.0
+
+# Machine Learning
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# Backend Simulation
+flask>=3.0.0
+werkzeug>=3.0.0
+
+# Dashboard
+streamlit>=1.30.0
+plotly>=5.18.0
+
+# Configuration
+pyyaml>=6.0.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0
