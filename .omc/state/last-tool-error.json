@@ -1,0 +1,7 @@
+{
+  "tool_name": "Bash",
+  "tool_input_preview": "{\"command\":\"cd \\\"C:/AppsNew/SE Project\\\" && python -m pytest tests/test_models.py::TestAnomalyDetector::test_fit_zscore tests/test_models.py::TestAnomalyDetector::test_get_anomaly_details -v 2>&1\",\"de...",
+  "error": "Exit code 1\n============================= test session starts =============================\r\nplatform win32 -- Python 3.12.0, pytest-9.0.3, pluggy-1.6.0 -- C:\\Python312\\python.exe\r\ncachedir: .pytest_cache\r\nrootdir: C:\\AppsNew\\SE Project\r\nplugins: langsmith-0.7.1, anyio-4.8.0\r\ncollecting ... collected 2 items\r\n\r\ntests/test_models.py::TestAnomalyDetector::test_fit_zscore FAILED        [ 50%]\r\ntests/test_models.py::TestAnomalyDetector::test_get_anomaly_details FAILED [100%]\r\n\r\n=====================...",
+  "timestamp": "2026-05-02T17:27:25.931Z",
+  "retry_count": 1
+}
