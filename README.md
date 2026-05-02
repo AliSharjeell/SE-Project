@@ -263,6 +263,195 @@ The Streamlit dashboard includes a **Live Demo Control Panel** with two modes:
 
 ---
 
+## Architecture Flow: How It Works
+
+> *A beginner-friendly journey through your infrastructure management system*
+
+---
+
+### The Journey of a Request 📨
+
+Imagine a user clicks a button on a website. That click creates a **request** — a digital message saying "give me this page." Here's how our system handles it:
+
+```
+User Click
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  1. STREAMLIT DASHBOARD (Control Center)                        │
+│     User watches real-time metrics • Selects presets or manual │
+│     controls • Injects chaos to test resilience                 │
+└─────────────────────────────────────────────────────────────────┘
+    │  (via HTTP)
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  2. GATEWAY (Load Balancer) — The Traffic Cop 🚦               │
+│     FastAPI service that decides WHERE to send the request     │
+│     • Tries 3 strategies: Round Robin, Least Connections,      │
+│       or AI-Powered (based on server health scores)            │
+└─────────────────────────────────────────────────────────────────┘
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  3. BACKEND SERVERS (The Workers) — Docker Containers 🐳      │
+│     3 FastAPI servers running in isolated Docker containers    │
+│     Each handles the request, returns a response              │
+│     Limited to 0.25 CPU each (lightweight, laptop-friendly)   │
+└─────────────────────────────────────────────────────────────────┘
+    │
+    ▼
+    Response sent back to user ✅
+```
+
+---
+
+### Plain-English Technicals 🔧
+
+| Technology | What It Does in This Project |
+|------------|------------------------------|
+| **Docker** 🐳 | Acts as the **physical metal**. Instead of needing 3 separate computers, Docker creates isolated "boxes" (containers) on one machine. Each backend server runs in its own box. |
+| **FastAPI** ⚡ | The **language** the servers speak. Like how humans use English/French, computers use HTTP. FastAPI is a modern, fast framework for building APIs (web services). |
+| **Scikit-learn** 🧠 | The **brain**. Uses Random Forest algorithm to predict traffic patterns 10 minutes into the future. Also uses Isolation Forest to detect anomalies (unusual behavior). |
+| **Streamlit** 📊 | The **control center dashboard**. Displays real-time charts, lets you inject chaos (kill servers), and control traffic patterns without writing code. |
+| **Docker SDK** 🔌 | The **automation layer**. Allows the auto-scaler to programmatically start/stop Docker containers based on CPU usage. |
+
+---
+
+### Step-by-Step System Lifecycle 🔄
+
+#### Phase 1: User Sends a Request
+```
+Dashboard → Gateway (/route endpoint)
+```
+The user clicks "Send Test Request" on the Streamlit dashboard. This sends an HTTP request to the Gateway service.
+
+#### Phase 2: Gateway Decides
+```
+Gateway Load Balancer
+    │
+    ├─ Round Robin: "You! Server 1. Take it."
+    ├─ Least Connections: "Server with fewest work, take this."
+    └─ AI-Powered: "Based on health scores, Server 3 is healthiest."
+```
+
+#### Phase 3: Request Arrives at Backend
+```
+Backend FastAPI (/process endpoint)
+    │
+    ├─ Records timestamp
+    ├─ Simulates processing (50-200ms)
+    └─ Returns response with server ID
+```
+
+#### Phase 4: Metrics Collected
+```
+Monitoring System
+    │
+    ├─ Collects: CPU %, Memory %, Response Time
+    ├─ Stores in history
+    └─ Used by ML models for predictions
+```
+
+#### Phase 5: ML Magic Happens
+```
+ML Service
+    │
+    ├─ TrafficPredictor: "Based on patterns, expect 10,000 RPS in 10 minutes"
+    └─ AnomalyDetector: "This spike looks unusual — flag it!"
+```
+
+#### Phase 6: Auto-Scaling (if needed)
+```
+Auto-Scaler (Docker SDK)
+    │
+    ├─ CPU > 70%? → Start a new Docker container
+    └─ CPU < 30%? → Stop an unnecessary container
+```
+
+---
+
+### The Control Center: Streamlit Dashboard 🎛️
+
+The Streamlit dashboard is your **mission control**. It offers two modes:
+
+#### Preset Mode (Automated Demos) 🎬
+| Button | What It Does |
+|--------|--------------|
+| **Black Friday Rush** | Simulates massive traffic ramp (10,000+ RPS). Watch the auto-scaler spin up new containers! |
+| **DDoS Attack** | Generates erratic spikes AND kills a backend container simultaneously. Tests system resilience. |
+| **Normal Operations** | Resets everything to a calm baseline (100 RPS constant). |
+
+#### Manual Mode (Deep Control) 🔬
+For engineers who want fine-grained control:
+
+- **Routing Strategy**: Switch between Round Robin, Least Connections, or AI-Powered
+- **Traffic Intensity**: Slider from 10 to 10,000 requests per second
+- **Traffic Shape**: Choose patterns — constant, ramp, spike, sine wave, burst
+- **Inject Chaos**: The **red-bordered button** that kills a random backend container. Watch the load balancer gracefully route around the failure!
+
+---
+
+### Visual: Request Flow Diagram
+
+```
+                    ┌─────────────────────────────────────────────────────┐
+                    │                   USER (Browser)                     │
+                    └──────────────────────┬──────────────────────────────┘
+                                           │
+                    ┌──────────────────────▼──────────────────────────────┐
+                    │              📊 STREAMLIT DASHBOARD                │
+                    │     • Real-time charts                              │
+                    │     • Preset buttons (Black Friday, DDoS)           │
+                    │     • Manual controls (sliders, dropdowns)           │
+                    └──────────────────────┬──────────────────────────────┘
+                                           │ HTTP
+                    ┌──────────────────────▼──────────────────────────────┐
+                    │           🚦 GATEWAY (Load Balancer)                │
+                    │     • Round Robin (sequential)                      │
+                    │     • Least Connections (fewest busy)               │
+                    │     • AI-Powered (health-score weighted)            │
+                    └──────────────────────┬──────────────────────────────┘
+                                           │
+           ┌───────────────────────────────┼───────────────────────────────┐
+           │                               │                               │
+           ▼                               ▼                               ▼
+┌──────────────────┐           ┌──────────────────┐           ┌──────────────────┐
+│  🐳 Backend-1    │           │  🐳 Backend-2    │           │  🐳 Backend-3    │
+│  (Docker)        │           │  (Docker)        │           │  (Docker)        │
+│  FastAPI         │           │  FastAPI         │           │  FastAPI         │
+│  Process request │           │  Process request │           │  Process request │
+└──────────────────┘           └──────────────────┘           └──────────────────┘
+           ▲                               ▲                               ▲
+           │                               │                               │
+           └───────────────────────────────┼───────────────────────────────┘
+                                           │ Metrics
+                    ┌──────────────────────▼──────────────────────────────┐
+                    │            🧠 ML SERVICE (Scikit-learn)              │
+                    │     • TrafficPredictor (Random Forest)              │
+                    │     • AnomalyDetector (Isolation Forest)             │
+                    └──────────────────────┬──────────────────────────────┘
+                                           │
+                    ┌──────────────────────▼──────────────────────────────┐
+                    │        🔌 AUTO-SCALER (Docker SDK)                 │
+                    │     • Monitors CPU usage                           │
+                    │     • Spins up/kills containers dynamically         │
+                    └─────────────────────────────────────────────────────┘
+```
+
+---
+
+### Key Concepts for Beginners 📚
+
+| Term | Simple Explanation |
+|------|-------------------|
+| **Container** | A lightweight "box" that isolates an application. Like a virtual computer inside your computer. |
+| **Load Balancer** | A traffic cop that distributes work evenly so no single server gets overwhelmed. |
+| **Auto-Scaling** | The system automatically adds or removes servers based on demand — like adding cashiers during a busy rush. |
+| **ML Prediction** | The computer learns patterns from past data to guess future traffic — like knowing rush hour is coming. |
+| **Chaos Engineering** | Intentionally breaking things to test resilience. If you can gracefully handle failures, your system is robust. |
+
+---
+
 ## License
 
 Academic Project - SE Department
