@@ -209,7 +209,7 @@ async def set_traffic(config: TrafficConfig):
 @app.post("/api/set_strategy")
 async def set_strategy(config: StrategyConfig):
     """Set load balancing strategy."""
-    valid_strategies = ["round_robin", "least_connections", "ai_powered"]
+    valid_strategies = ["round_robin", "least_connections", "ai_powered", "off"]
     if config.strategy not in valid_strategies:
         raise HTTPException(
             status_code=400,
