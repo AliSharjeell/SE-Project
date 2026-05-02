@@ -467,6 +467,9 @@ with pred_col2:
 # ============================================
 # SIDEBAR - Command Center
 # ============================================
+# Auto-refresh setting (default, can be overridden in settings tab)
+auto_refresh = True
+
 with st.sidebar:
     st.markdown("### Command Center")
 
@@ -613,7 +616,10 @@ with st.sidebar:
             st.cache_data.clear()
             st.rerun()
 
-# Auto-refresh
-if auto_refresh:
+# Auto-refresh - use session state to track setting
+if 'auto_refresh' not in st.session_state:
+    st.session_state.auto_refresh = True
+
+if st.session_state.auto_refresh:
     time.sleep(5)
     st.rerun()
