@@ -292,7 +292,7 @@ def start_traffic_generator(rps: int, strategy: str):
                 pass
 
         # Call HTTP API to start traffic
-        requests.get(f"http://localhost:8502/start?rps={rps}", timeout=2)
+        requests.get(f"http://localhost:8502/start?rps={rps}&strategy={strategy}", timeout=2)
         st.session_state['traffic_running'] = True
         st.session_state['traffic_rps'] = rps
     except Exception:

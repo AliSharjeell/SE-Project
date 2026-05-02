@@ -23,6 +23,7 @@ class TrafficState:
     rps = 100
     count = 0
     start = None
+    strategy = "ai_powered"
 
 state = TrafficState()
 
@@ -39,7 +40,8 @@ class TrafficHandler(BaseHTTPRequestHandler):
 
         elif self.path.startswith('/start'):
             rps = self._get_param('rps', 100)
-            self._start_traffic(rps)
+            strategy = self._get_param('strategy', 'ai_powered')
+            self._start_traffic(rps, strategy)
             self.send_response(200)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
@@ -81,9 +83,10 @@ class TrafficHandler(BaseHTTPRequestHandler):
                         return v
         return default
 
-    def _start_traffic(self, rps):
+    def _start_traffic(self, rps, strategy="ai_powered"):
         self._stop_traffic()
         state.rps = int(rps)
+        state.strategy = strategy
         state.active = True
         state.count = 0
         state.start = time.time()
@@ -95,9 +98,10 @@ class TrafficHandler(BaseHTTPRequestHandler):
 
     def _generate_traffic(self):
         interval = 1.0 / max(state.rps, 1)
+        endpoint = f"{GENERATE_ENDPOINT}?strategy={state.strategy}"
         while state.active:
             try:
-                requests.get(GENERATE_ENDPOINT, timeout=1)
+                requests.get(endpoint, timeout=1)
                 state.count += 1
             except:
                 pass

@@ -160,7 +160,7 @@ async def health_check():
 
 
 @app.get("/generate-load")
-async def generate_load():
+async def generate_load(strategy: str = "ai_powered"):
     """
     Endpoint that generates load by routing a request through the load balancer.
     This exercises the load balancing logic and counts towards stats.
@@ -171,8 +171,13 @@ async def generate_load():
     if not load_balancer.get_servers():
         raise HTTPException(status_code=503, detail="No backend servers available")
 
-    # Select a server using AI-powered strategy
-    selected_server = load_balancer.select_server(RoutingStrategy.AI_POWERED)
+    try:
+        strategy_enum = RoutingStrategy(strategy)
+    except ValueError:
+        strategy_enum = RoutingStrategy.AI_POWERED
+
+    # Select a server using specified strategy
+    selected_server = load_balancer.select_server(strategy_enum)
     if not selected_server:
         raise HTTPException(status_code=503, detail="No healthy servers available")
 
@@ -184,7 +189,7 @@ async def generate_load():
     return {
         "status": "ok",
         "routed_to": selected_server,
-        "strategy": "ai_powered"
+        "strategy": strategy_enum.value
     }
 
 
