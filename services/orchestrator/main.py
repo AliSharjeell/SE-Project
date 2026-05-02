@@ -301,32 +301,27 @@ async def health():
 
 @app.get("/api/metrics")
 async def get_metrics():
-    """Get real container metrics using docker CLI directly."""
-    import subprocess
-    import json
-    try:
-        result = subprocess.run(
-            ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
-            capture_output=True, text=True, timeout=15
-        )
-        if result.returncode == 0:
-            metrics = {}
-            for line in result.stdout.strip().split('\n'):
-                if line:
-                    try:
-                        data = json.loads(line)
-                        name = data.get('Name', '')
-                        cpu = data.get('CPUPerc', '0%').replace('%', '').strip()
-                        try:
-                            metrics[name] = float(cpu)
-                        except:
-                            metrics[name] = 0.0
-                    except:
-                        pass
-            return {"metrics": metrics, "source": "docker_stats"}
-        return {"metrics": {}, "source": "docker_failed"}
-    except Exception as e:
-        return {"metrics": {}, "source": f"error: {str(e)}"}
+    """Get metrics - uses traffic intensity as proxy for CPU load."""
+    # Since we can't access Docker CLI inside container, use orchestrator state
+    # as a proxy for system load (traffic intensity correlates with CPU)
+    traffic_intensity = state.get("traffic_intensity", 100)
+
+    # Simulate CPU load based on traffic intensity
+    # Higher traffic = higher simulated CPU
+    metrics = {}
+    base_load = min(traffic_intensity / 100, 95)  # Cap at 95%
+
+    for i in range(1, 4):
+        server_name = f"backend-{i}"
+        variation = random.uniform(-15, 15)
+        cpu = max(5, min(98, base_load + variation))
+        metrics[server_name] = round(cpu, 1)
+
+    return {
+        "metrics": metrics,
+        "source": "simulated_from_traffic",
+        "traffic_intensity": traffic_intensity
+    }
 
 
 @app.get("/api/events")
