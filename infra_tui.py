@@ -227,12 +227,12 @@ class InfrastructureTUI:
         confidence = self.predictor.get_confidence_score(pred[0])
 
         print(f"\n{Colors.BOLD}Predictions with 95% Confidence Intervals:{Colors.ENDC}")
-        print(f"{'─' * 55}")
+        print(f"{'-' * 55}")
         print(f"{'Time':^8} | {'Prediction':^12} | {'Confidence Interval':^25}")
-        print(f"{'─' * 55}")
+        print(f"{'-' * 55}")
         for i, (p, l, u) in enumerate(zip(pred[:10], lower[:10], upper[:10])):
             print(f"t+{i+1:2d} min  |   {p:5.0f} req    |     [{l:4.0f} - {u:4.0f}]")
-        print(f"{'─' * 55}")
+        print(f"{'-' * 55}")
         print(f"\nModel Confidence Score: {confidence:.2%}")
 
     def anomaly_detection_menu(self):
@@ -258,16 +258,16 @@ class InfrastructureTUI:
         anomalies = self.anomaly_detector.detect(test_data)
         scores = self.anomaly_detector.get_anomaly_scores(test_data)
 
-        print(f"\n{'─' * 60}")
+        print(f"\n{'-' * 60}")
         print(f"{'Sample':^8} | {'CPU':^8} | {'RT':^8} | {'Score':^10} | {'Status':^12}")
-        print(f"{'─' * 60}")
+        print(f"{'-' * 60}")
         labels = ['Normal', 'Normal', 'Normal', 'ANOMALY', 'ANOMALY', 'Normal', 'Normal']
         for i, (a, s) in enumerate(zip(anomalies, scores)):
             status = f"{Colors.RED}ANOMALY{Colors.ENDC}" if a == 1 else f"{Colors.GREEN}Normal{Colors.ENDC}"
             cpu = test_data.iloc[i]['cpu_usage']
             rt = test_data.iloc[i]['response_time']
             print(f"{i+1:^8} | {cpu:^8.0f} | {rt:^8.0f} | {s:^10.3f} | {status}")
-        print(f"{'─' * 60}")
+        print(f"{'-' * 60}")
 
         anomaly_count = sum(anomalies)
         print(f"\nDetected {anomaly_count} anomalies in {len(test_data)} samples")
@@ -283,9 +283,9 @@ class InfrastructureTUI:
         print(f"{Colors.CYAN}Collected {len(self.metrics_history)} metric snapshots{Colors.ENDC}\n")
 
         print(f"{Colors.BOLD}Recent Metrics History:{Colors.ENDC}")
-        print(f"{'─' * 70}")
+        print(f"{'-' * 70}")
         print(f"{'Time':^12} | {'CPU':^8} | {'Memory':^8} | {'RT':^8} | {'Connections':^12}")
-        print(f"{'─' * 70}")
+        print(f"{'-' * 70}")
 
         for m in list(self.metrics_history)[-10:]:
             ts = m.get('timestamp', 'N/A')[-8:]
@@ -295,7 +295,7 @@ class InfrastructureTUI:
             conn = m.get('active_connections', 0)
             cpu_bar = '=' * int(cpu / 10)
             print(f"{ts:^12} | {cpu:5.1f}% {cpu_bar:<3} | {mem:6.1f}% | {rt:6.0f}ms | {conn:10.0f}")
-        print(f"{'─' * 70}")
+        print(f"{'-' * 70}")
 
         # Calculate averages
         if self.metrics_history:
@@ -411,9 +411,9 @@ class InfrastructureTUI:
         print(f"  [OK] Anomaly Detector trained")
 
         print(f"\n{Colors.CYAN}Step 3: Running 20 Simulation Iterations...{Colors.ENDC}")
-        print(f"{'─' * 75}")
+        print(f"{'-' * 75}")
         print(f"{'Iter':^5} | {'CPU':^12} | {'Response':^12} | {'Route':^15} | {'Scaling':^10} | {'Anomaly':^8}")
-        print(f"{'─' * 75}")
+        print(f"{'-' * 75}")
 
         for i in range(20):
             iteration = i + 1
@@ -447,7 +447,7 @@ class InfrastructureTUI:
                 'active_connections': conn
             })
 
-        print(f"{'─' * 75}")
+        print(f"{'-' * 75}")
 
         print(f"\n{Colors.CYAN}Step 4: System Summary{Colors.ENDC}")
         status = self.scaler.get_status()
