@@ -272,9 +272,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Get data (with graceful fallback)
-stats = safe_api_call(get_gateway_stats_cached, {'total_requests': 0, 'requests_delta': 0})
-servers = safe_api_call(get_servers_cached, [])
-orch_status = safe_api_call(get_orchestrator_status_cached, {})
+stats = safe_api_call(get_gateway_stats_cached, {'total_requests': 0, 'requests_delta': 0}) or {'total_requests': 0, 'requests_delta': 0}
+servers = safe_api_call(get_servers_cached, []) or []
+orch_status = safe_api_call(get_orchestrator_status_cached, {}) or {}
 
 # ============================================
 # ROW 1: Top Metrics (4 columns)
