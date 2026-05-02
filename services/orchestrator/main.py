@@ -129,7 +129,7 @@ def kill_container(name: str) -> bool:
 state = {
     "traffic_pattern": "constant",
     "traffic_intensity": 100,
-    "routing_strategy": "round_robin",
+    "routing_strategy": "ai_powered",
     "last_chaos": None,
 }
 
