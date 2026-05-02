@@ -159,6 +159,35 @@ async def health_check():
     return {"status": "healthy", "servers_available": len(load_balancer.get_servers())}
 
 
+@app.get("/generate-load")
+async def generate_load():
+    """
+    Endpoint that generates load by routing a request through the load balancer.
+    This exercises the load balancing logic and counts towards stats.
+    Uses 'ai_powered' strategy by default.
+    """
+    from load_balancer import RoutingStrategy
+
+    if not load_balancer.get_servers():
+        raise HTTPException(status_code=503, detail="No backend servers available")
+
+    # Select a server using AI-powered strategy
+    selected_server = load_balancer.select_server(RoutingStrategy.AI_POWERED)
+    if not selected_server:
+        raise HTTPException(status_code=503, detail="No healthy servers available")
+
+    # Record this as a request
+    load_balancer.increment_connections(selected_server)
+    load_balancer.record_request(selected_server, 200)
+    load_balancer.decrement_connections(selected_server)
+
+    return {
+        "status": "ok",
+        "routed_to": selected_server,
+        "strategy": "ai_powered"
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

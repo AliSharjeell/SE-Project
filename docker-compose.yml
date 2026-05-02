@@ -167,6 +167,7 @@ services:
     hostname: dashboard
     ports:
       - "8501:8501"
+      - "8502:8502"
     environment:
       - GATEWAY_URL=http://gateway:8000
       - ML_SERVICE_URL=http://ml-service:8000

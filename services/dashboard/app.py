@@ -12,6 +12,7 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 import random
 import time
+import threading
 
 # Page config
 st.set_page_config(
@@ -266,6 +267,45 @@ def inject_chaos():
 def show_toast(message: str, icon: str = "✅"):
     """Display toast notification using st.success/info with timestamp."""
     st.toast(f"{icon} {message}", icon=None)
+
+
+# Traffic generator - uses standalone HTTP controller service
+_controller_pid = None
+
+def start_traffic_generator(rps: int, strategy: str):
+    """Start traffic generation via HTTP API to standalone controller."""
+    try:
+        # Start controller if not running
+        import subprocess
+        global _controller_pid
+        if _controller_pid is None:
+            try:
+                proc = subprocess.Popen(
+                    [sys.executable, "/app/traffic_controller.py", "8502"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    start_new_session=True
+                )
+                _controller_pid = proc.pid
+                time.sleep(0.5)
+            except:
+                pass
+
+        # Call HTTP API to start traffic
+        requests.get(f"http://localhost:8502/start?rps={rps}", timeout=2)
+        st.session_state['traffic_running'] = True
+        st.session_state['traffic_rps'] = rps
+    except Exception:
+        pass
+
+def stop_traffic_generator():
+    """Stop traffic generation."""
+    try:
+        requests.get(f"http://localhost:8502/stop", timeout=2)
+    except:
+        pass
+    st.session_state['traffic_running'] = False
+    st.session_state['traffic_rps'] = 0
 
 
 # ============================================
@@ -611,29 +651,36 @@ with st.sidebar:
 
         st.markdown("#### Demo Scenarios")
 
+        # Get current strategy for traffic generation
+        current_routing = orch_status.get('routing_strategy', 'ai_powered') if orch_status else 'ai_powered'
+
         # Stack buttons vertically for clean alignment
         if st.button("🔥 Black Friday Rush", use_container_width=True, key="bf_preset",
                      type="primary" if st.session_state.current_scenario == 'black_friday' else "secondary"):
             # Aggressive ramp: spike to 12000 RPS
+            stop_traffic_generator()
             st.session_state.current_scenario = 'black_friday'
             if set_traffic("spike", 12000):
+                start_traffic_generator(12000, current_routing)
                 show_toast("Black Friday Rush - 12,000 RPS spike!")
             else:
                 show_toast("Traffic: SPIKE → 12,000 RPS", "📈")
 
         if st.button("💀 DDoS Attack", use_container_width=True, key="ddos_preset",
                      type="primary" if st.session_state.current_scenario == 'ddos' else "secondary"):
+            stop_traffic_generator()
             st.session_state.current_scenario = 'ddos'
-            # Violent DDoS: 10000 RPS burst + chaos injection
-            set_traffic("burst", 10000)
+            if set_traffic("burst", 10000):
+                start_traffic_generator(10000, current_routing)
+                show_toast("DDoS: 10,000 RPS + chaos injection", "⚠️")
+            # Chaos injection
             chaos_result = inject_chaos()
             if chaos_result and chaos_result.get('success'):
                 show_toast(f"Container {chaos_result.get('container_killed')} killed!", "💥")
-            else:
-                show_toast("DDoS: 10,000 RPS + chaos injection", "⚠️")
 
         if st.button("🔄 Normal Ops", use_container_width=True, key="normal_preset",
                      type="primary" if st.session_state.current_scenario == 'normal' else "secondary"):
+            stop_traffic_generator()
             st.session_state.current_scenario = 'normal'
             if set_traffic("constant", 50):
                 show_toast("Normal operations - 50 RPS steady")
@@ -642,8 +689,10 @@ with st.sidebar:
 
         if st.button("〰️ Sine Wave", use_container_width=True, key="sine_preset",
                      type="primary" if st.session_state.current_scenario == 'sine_wave' else "secondary"):
+            stop_traffic_generator()
             st.session_state.current_scenario = 'sine_wave'
             if set_traffic("sine_wave", 500):
+                start_traffic_generator(500, current_routing)
                 show_toast("Sine wave pattern - 500 RPS", "〰️")
             else:
                 show_toast("Traffic: SINE_WAVE → 500 RPS", "〰️")
