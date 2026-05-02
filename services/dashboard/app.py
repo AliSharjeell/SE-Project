@@ -594,8 +594,13 @@ with st.sidebar:
         st.markdown("#### Routing Strategy")
 
         # Strategy selector buttons in presets
+        # Sync session state with actual orchestrator status on startup
         if 'current_strategy' not in st.session_state:
-            st.session_state.current_strategy = 'ai_powered'
+            st.session_state.current_strategy = current_strategy
+        else:
+            # Sync with orchestrator on every render
+            if orch_status and orch_status.get('routing_strategy'):
+                st.session_state.current_strategy = orch_status.get('routing_strategy', 'ai_powered')
 
         strat_cols = st.columns(2)
         with strat_cols[0]:
