@@ -1,0 +1,42 @@
+# Configuration for AI-Driven Infrastructure Manager
+# This file contains all settings for the system orchestrator and its components.
+
+orchestrator:
+  simulation:
+    interval_seconds: 1.0
+    max_iterations: 100
+    scenario: "normal"  # normal, spike, ramp, sine_wave
+
+traffic_generator:
+  base_rate: 10
+  max_rate: 100
+  duration: 60.0
+
+monitoring:
+  history_size: 1000
+  collection_interval: 1.0
+
+load_balancer:
+  max_history: 1000
+  default_strategy: "ai_powered"
+
+auto_scaler:
+  min_servers: 1
+  max_servers: 10
+  scale_up_threshold: 70.0
+  scale_down_threshold: 30.0
+  scale_up_cooldown: 60
+  scale_down_cooldown: 120
+
+ai_prediction:
+  predictor:
+    n_estimators: 100
+    confidence_level: 0.95
+  anomaly_detector:
+    method: "isolation_forest"
+    contamination: 0.1
+    z_threshold: 3.0
+
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
