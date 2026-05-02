@@ -133,9 +133,8 @@ async def inject_chaos():
     """Kill a random backend container to test system recovery."""
     try:
         # Find all backend containers
-        containers = get_docker_client().containers.list(
-            filters={"name": lambda name: name.startswith("backend-")}
-        )
+        all_containers = get_docker_client().containers.list()
+        containers = [c for c in all_containers if c.name.startswith("backend-")]
 
         running_backends = [c for c in containers if c.status == "running"]
 
