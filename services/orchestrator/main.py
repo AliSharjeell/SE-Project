@@ -301,27 +301,30 @@ async def health():
 
 @app.get("/api/metrics")
 async def get_metrics():
-    """Get real container metrics."""
+    """Get real container metrics using docker CLI directly."""
     import subprocess
+    import json
     try:
         result = subprocess.run(
-            ["powershell", "-Command",
-             "docker stats --no-stream --format '{{.Name}},{{.CPUPerc}}'"],
+            ["docker", "stats", "--no-stream", "--format", "{{json .}}"],
             capture_output=True, text=True, timeout=15
         )
         if result.returncode == 0:
             metrics = {}
             for line in result.stdout.strip().split('\n'):
-                if ',' in line:
-                    name, cpu = line.split(',')
-                    name = name.strip()
-                    cpu_pct = cpu.replace('%', '').strip()
+                if line:
                     try:
-                        metrics[name] = float(cpu_pct)
+                        data = json.loads(line)
+                        name = data.get('Name', '')
+                        cpu = data.get('CPUPerc', '0%').replace('%', '').strip()
+                        try:
+                            metrics[name] = float(cpu)
+                        except:
+                            metrics[name] = 0.0
                     except:
-                        metrics[name] = 0.0
+                        pass
             return {"metrics": metrics, "source": "docker_stats"}
-        return {"metrics": {}, "source": "unavailable"}
+        return {"metrics": {}, "source": "docker_failed"}
     except Exception as e:
         return {"metrics": {}, "source": f"error: {str(e)}"}
 
