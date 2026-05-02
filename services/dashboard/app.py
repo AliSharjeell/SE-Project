@@ -28,40 +28,21 @@ ML_SERVICE_URL = "http://ml-service:8000"
 ORCHESTRATOR_URL = "http://orchestrator:8002"
 REQUEST_TIMEOUT = 1.5
 
-# Cache duration (seconds)
+# Cache duration (seconds) - kept short so data doesn't stay stale
 CACHE_DURATION = 5
 
 
 def safe_api_call(func, default=None, cache_key=None):
     """Wrap API calls with timeout and graceful degradation."""
-    # Check cache first
-    if cache_key and cache_key in st.session_state:
-        cached = st.session_state[cache_key]
-        if time.time() - cached.get('_timestamp', 0) < CACHE_DURATION:
-            return cached.get('data', default)
-
     try:
         result = func()
-        if cache_key:
-            st.session_state[cache_key] = {'data': result, '_timestamp': time.time()}
-        return result
-    except Exception as e:
+        return result if result is not None else default
+    except:
         return default
 
 
-@st.cache_data(ttl=CACHE_DURATION)
-def get_gateway_stats_cached():
-    try:
-        response = requests.get(f"{GATEWAY_URL}/stats", timeout=REQUEST_TIMEOUT)
-        if response.status_code == 200:
-            return response.json()
-    except:
-        pass
-    return None
-
-
-@st.cache_data(ttl=CACHE_DURATION)
-def get_servers_cached():
+def fetch_servers():
+    """Non-cached fetch for servers."""
     try:
         response = requests.get(f"{GATEWAY_URL}/servers", timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
@@ -71,9 +52,19 @@ def get_servers_cached():
     return []
 
 
-@st.cache_data(ttl=10)
-def get_container_metrics_cached():
-    """Fetch real container CPU metrics from orchestrator."""
+def fetch_gateway_stats():
+    """Non-cached fetch for gateway stats."""
+    try:
+        response = requests.get(f"{GATEWAY_URL}/stats", timeout=REQUEST_TIMEOUT)
+        if response.status_code == 200:
+            return response.json()
+    except:
+        pass
+    return None
+
+
+def fetch_container_metrics():
+    """Non-cached fetch for container metrics."""
     try:
         response = requests.get(f"{ORCHESTRATOR_URL}/api/metrics", timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
@@ -83,8 +74,8 @@ def get_container_metrics_cached():
     return {"metrics": {}, "source": "unavailable"}
 
 
-@st.cache_data(ttl=CACHE_DURATION)
-def get_orchestrator_status_cached():
+def fetch_orchestrator_status():
+    """Non-cached fetch for orchestrator status."""
     try:
         response = requests.get(f"{ORCHESTRATOR_URL}/api/status", timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
@@ -94,9 +85,8 @@ def get_orchestrator_status_cached():
     return None
 
 
-@st.cache_data(ttl=10)
-def get_audit_events_cached():
-    """Fetch system audit events from orchestrator."""
+def fetch_audit_events():
+    """Non-cached fetch for audit events."""
     try:
         response = requests.get(f"{ORCHESTRATOR_URL}/api/events?limit=10", timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
@@ -332,10 +322,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Get data (with graceful fallback)
-stats = safe_api_call(get_gateway_stats_cached, {'total_requests': 0, 'requests_delta': 0}) or {'total_requests': 0, 'requests_delta': 0}
-servers = safe_api_call(get_servers_cached, []) or []
-orch_status = safe_api_call(get_orchestrator_status_cached, {}) or {}
-container_metrics = get_container_metrics_cached()
+stats = safe_api_call(fetch_gateway_stats, {'total_requests': 0, 'requests_delta': 0}) or {'total_requests': 0, 'requests_delta': 0}
+servers = safe_api_call(fetch_servers, []) or []
+orch_status = safe_api_call(fetch_orchestrator_status, {}) or {}
+container_metrics = fetch_container_metrics()
 
 # ============================================
 # ROW 1: Top Metrics (4 columns)
@@ -832,7 +822,7 @@ with st.sidebar:
 
         # Show service status
         gateway_ok = safe_api_call(lambda: requests.get(f"{GATEWAY_URL}/health", timeout=1), None) is not None
-        orch_ok = safe_api_call(get_orchestrator_status_cached, None) is not None
+        orch_ok = safe_api_call(fetch_orchestrator_status, None) is not None
 
         col_st1, col_st2 = st.columns(2)
         with col_st1:
@@ -852,7 +842,7 @@ with st.sidebar:
 # ============================================
 st.markdown('<div class="section-header" style="margin-top: 1rem;">System Audit</div>', unsafe_allow_html=True)
 
-audit_events = get_audit_events_cached()
+audit_events = fetch_audit_events()
 events_list = audit_events.get("events", [])
 
 if events_list:
