@@ -22,60 +22,31 @@ def get_docker_client():
     global _docker_client
     if _docker_client is None:
         import docker
-        _docker_client = docker.from_env()
+        try:
+            # Try TCP connection to Docker Desktop
+            _docker_client = docker.DockerClient(base_url='tcp://host.docker.internal:2375')
+            _docker_client.ping()
+        except Exception as e1:
+            try:
+                # Fallback: try local TCP
+                _docker_client = docker.DockerClient(base_url='tcp://127.0.0.1:2375')
+                _docker_client.ping()
+            except Exception as e2:
+                print(f"Docker connections failed: {e1}, {e2}")
+                _docker_client = None
     return _docker_client
 
 
-def get_docker_socket_containers():
-    """Get containers via Docker socket API."""
-    import urllib.request
-    import json
-    try:
-        # Use Unix socket to query Docker API
-        sock = '/var/run/docker.sock'
-        req = urllib.request.Request(f"http://unix.sock/containers/json?filters={{\"name\":{{\"backend-\":true}}}}",
-                                      headers={'Content-Type': 'application/json'})
-        # This won't work directly, need socket path workaround
-        return []
-    except:
-        pass
-    # Fallback: use docker CLI if available
-    return list_backend_containers_cli()
-
-
-def list_backend_containers_cli():
-    """List backend containers using docker CLI."""
-    import subprocess
-    try:
-        result = subprocess.run(
-            ["docker", "ps", "--filter", "name=backend-", "--format", "{{.Names}}"],
-            capture_output=True,
-            text=True,
-            timeout=10
-        )
-        if result.returncode == 0:
-            return [name.strip() for name in result.stdout.strip().split('\n') if name.strip()]
-        return []
-    except Exception as e:
-        print(f"Error listing containers: {e}")
-        return []
-
-
 def list_backend_containers():
-    """List running backend container names."""
-    import subprocess
-    try:
-        # Use docker CLI directly
-        result = subprocess.run(
-            ["docker", "ps", "--filter", "name=backend-", "--format", "{{.Names}}"],
-            capture_output=True,
-            text=True,
-            timeout=15,
-            shell=False
-        )
-        if result.returncode == 0 and result.stdout.strip():
-            return [n.strip() for n in result.stdout.strip().split('\n') if n.strip()]
+    """List running backend containers."""
+    client = get_docker_client()
+    if not client:
+        print("Docker client not available")
         return []
+
+    try:
+        containers = client.containers.list()
+        return [c.name for c in containers if c.name.startswith("backend-") and c.status == "running"]
     except Exception as e:
         print(f"Error listing containers: {e}")
         return []
@@ -83,16 +54,15 @@ def list_backend_containers():
 
 def kill_container(name: str) -> bool:
     """Kill a container by name."""
-    import subprocess
+    client = get_docker_client()
+    if not client:
+        print("Docker client not available")
+        return False
+
     try:
-        result = subprocess.run(
-            ["docker", "kill", name],
-            capture_output=True,
-            text=True,
-            timeout=15,
-            shell=False
-        )
-        return result.returncode == 0
+        container = client.containers.get(name)
+        container.kill()
+        return True
     except Exception as e:
         print(f"Error killing container: {e}")
         return False
