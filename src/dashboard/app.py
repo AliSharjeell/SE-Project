@@ -706,8 +706,10 @@ def main():
     .stSubheader {
         color: #e0e0e0;
     }
-    /* Fix for markdown text */
-    p, span, div {
+    /* Fix for markdown text - use more specific selectors to avoid affecting Streamlit internals */
+    .stMarkdown p, .stMarkdown span, .stMarkdown div,
+    .element-container p, .element-container span,
+    .stAlert p, .stAlert span, .stAlert div {
         color: #e0e0e0;
     }
     .stAlert {

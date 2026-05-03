@@ -301,26 +301,38 @@ async def health():
 
 @app.get("/api/metrics")
 async def get_metrics():
-    """Get metrics - uses traffic intensity as proxy for CPU load."""
-    # Since we can't access Docker CLI inside container, use orchestrator state
-    # as a proxy for system load (traffic intensity correlates with CPU)
+    """Get metrics - uses traffic intensity as proxy for CPU load.
+    Simulates load distribution based on the active routing strategy
+    so the dashboard reflects actual traffic patterns.
+    """
     traffic_intensity = state.get("traffic_intensity", 100)
+    strategy = state.get("routing_strategy", "ai_powered")
 
-    # Simulate CPU load based on traffic intensity
-    # Higher traffic = higher simulated CPU
     metrics = {}
     base_load = min(traffic_intensity / 100, 95)  # Cap at 95%
 
     for i in range(1, 4):
         server_name = f"backend-{i}"
         variation = random.uniform(-15, 15)
-        cpu = max(5, min(98, base_load + variation))
+
+        if strategy == "off":
+            # OFF mode: all traffic goes to the first server
+            if i == 1:
+                cpu = max(5, min(98, base_load + variation))
+            else:
+                # Idle servers show low baseline CPU
+                cpu = max(5, min(20, 10 + variation * 0.3))
+        else:
+            # Load-balanced modes: distribute load across all servers
+            cpu = max(5, min(98, base_load + variation))
+
         metrics[server_name] = round(cpu, 1)
 
     return {
         "metrics": metrics,
         "source": "simulated_from_traffic",
-        "traffic_intensity": traffic_intensity
+        "traffic_intensity": traffic_intensity,
+        "routing_strategy": strategy,
     }
 
 

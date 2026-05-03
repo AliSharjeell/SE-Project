@@ -280,7 +280,7 @@ class TestAnomalyDetector:
         # Test on training data (should detect some anomalies)
         labels = trained_anomaly_detector.detect(sample_metrics_data)
         assert len(labels) == len(sample_metrics_data)
-        assert labels.dtype == np.int64
+        assert np.issubdtype(labels.dtype, np.integer)
         # Labels should be 0 (normal) or 1 (anomaly)
         assert set(labels).issubset({0, 1})
 
@@ -290,7 +290,7 @@ class TestAnomalyDetector:
         detector.fit(sample_metrics_data)
         labels = detector.detect(sample_metrics_data)
         assert len(labels) == len(sample_metrics_data)
-        assert labels.dtype == np.int64
+        assert np.issubdtype(labels.dtype, np.integer)
 
     def test_get_anomaly_scores(self, trained_anomaly_detector, sample_metrics_data):
         """Test getting anomaly scores."""

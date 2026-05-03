@@ -48,10 +48,8 @@ state_lock = threading.Lock()
 def get_backend_containers() -> List[docker.models.containers.Container]:
     """Get all running backend containers."""
     try:
-        containers = docker_client.containers.list(
-            filters={"name": lambda name: name.startswith(BACKEND_CONTAINER_PREFIX)}
-        )
-        return [c for c in containers if c.status == "running"]
+        containers = docker_client.containers.list()
+        return [c for c in containers if c.name.startswith(BACKEND_CONTAINER_PREFIX) and c.status == "running"]
     except Exception as e:
         print(f"Error listing containers: {e}")
         return []

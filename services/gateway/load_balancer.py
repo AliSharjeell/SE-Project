@@ -117,7 +117,11 @@ class LoadBalancer:
         Select a server based on the specified routing strategy.
         """
         with self._lock:
-            healthy_servers = [s for s in self._servers.values() if s.healthy]
+            # Use _server_order to maintain deterministic ordering
+            healthy_servers = [
+                self._servers[sid] for sid in self._server_order
+                if sid in self._servers and self._servers[sid].healthy
+            ]
             if not healthy_servers:
                 return None
 
@@ -182,14 +186,16 @@ class LoadBalancer:
 
     def _select_off(self, healthy_servers: List[Server]) -> str:
         """
-        Off: No load balancing - return first healthy server.
-        Effectively disables intelligent routing.
+        Off: No load balancing - route ALL traffic to the first healthy server.
+        This effectively disables distribution and sends every request to a
+        single target (backend-1 unless it is unhealthy).
         """
         self._stats.off += 1
         self._total_requests += 1
 
-        healthy_servers[0].last_selected = time.time()
-        return healthy_servers[0].url
+        selected = healthy_servers[0]
+        selected.last_selected = time.time()
+        return selected.url
 
     def increment_connections(self, url: str) -> None:
         """Increment active connection count for a server."""

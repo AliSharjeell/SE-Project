@@ -1,4 +1,5 @@
 import os
+import time
 import httpx
 import requests
 import threading
@@ -22,14 +23,16 @@ def _sync_health_scores():
             scores = response.json().get("scores", {})
             for url, score in scores.items():
                 load_balancer.update_health_score(url, score)
-    except:
-        pass
+        else:
+            print(f"[Gateway] ML service returned status {response.status_code}")
+    except Exception as e:
+        print(f"[Gateway] Health sync failed: {e}")
 
 def _schedule_health_sync():
     """Periodically sync health scores from ML service."""
     while True:
         _sync_health_scores()
-        threading.Event().wait(10)  # Sync every 10 seconds
+        time.sleep(10)  # Sync every 10 seconds
 
 
 class RouteRequest(BaseModel):
@@ -190,9 +193,9 @@ async def health_check():
 @app.get("/generate-load")
 async def generate_load(strategy: str = "ai_powered"):
     """
-    Endpoint that generates load by routing a request through the load balancer.
-    This exercises the load balancing logic and counts towards stats.
-    Uses 'ai_powered' strategy by default.
+    Endpoint that generates real load by forwarding a request to a backend server.
+    This exercises the load balancing logic, counts towards stats, and actually
+    hits the backend so CPU / latency metrics are meaningful.
     """
     from load_balancer import RoutingStrategy
 
@@ -204,21 +207,33 @@ async def generate_load(strategy: str = "ai_powered"):
     except ValueError:
         strategy_enum = RoutingStrategy.AI_POWERED
 
-    # Select a server using specified strategy
     selected_server = load_balancer.select_server(strategy_enum)
     if not selected_server:
         raise HTTPException(status_code=503, detail="No healthy servers available")
 
-    # Record this as a request
-    load_balancer.increment_connections(selected_server)
-    load_balancer.record_request(selected_server, 200)
-    load_balancer.decrement_connections(selected_server)
+    try:
+        load_balancer.increment_connections(selected_server)
 
-    return {
-        "status": "ok",
-        "routed_to": selected_server,
-        "strategy": strategy_enum.value
-    }
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.post(
+                f"{selected_server}/process",
+                json={"request_id": "load-test", "payload": "x"}
+            )
+
+        load_balancer.decrement_connections(selected_server)
+        load_balancer.record_request(selected_server, response.status_code)
+
+        return {
+            "status": "ok",
+            "routed_to": selected_server,
+            "strategy": strategy_enum.value,
+            "backend_response": response.json() if response.headers.get("content-type", "").startswith("application/json") else {}
+        }
+
+    except httpx.HTTPError as e:
+        load_balancer.decrement_connections(selected_server)
+        load_balancer.mark_unhealthy(selected_server)
+        raise HTTPException(status_code=502, detail=f"Backend error: {str(e)}")
 
 
 if __name__ == "__main__":

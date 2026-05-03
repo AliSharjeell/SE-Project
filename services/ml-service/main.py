@@ -15,6 +15,7 @@ import requests
 import random
 
 from flask import Flask, jsonify
+from anomaly import AnomalyDetector
 
 app = Flask(__name__)
 
@@ -45,6 +46,10 @@ MODEL_WEIGHTS = {
 HIGH_CPU_THRESHOLD = 80.0
 HIGH_MEMORY_THRESHOLD = 85.0
 HIGH_ERROR_RATE_THRESHOLD = 0.05
+
+# Anomaly detector instance (lazily fitted on first call)
+_anomaly_detector = AnomalyDetector(contamination=0.1, random_state=42)
+_anomaly_detector_fitted = False
 
 
 def collect_gateway_stats() -> Dict:
@@ -128,48 +133,53 @@ def collect_all_metrics() -> Dict[str, Dict]:
 
 def predict_health_score(metrics: Dict) -> float:
     """
-    Predict health score (0.0 to 1.0) using weighted model.
+    Predict health score (0.0 to 1.0) using the declared MODEL_WEIGHTS.
     Higher score = healthier server.
     """
     if not metrics.get("healthy", False):
-        return 0.1
+        return 0.05
 
-    score = 1.0
-
-    # CPU impact
+    # Normalize each feature to 0..1 (0 = worst, 1 = best)
     cpu = metrics.get("cpu_percent", 50)
-    if cpu > HIGH_CPU_THRESHOLD:
-        score -= 0.4 * ((cpu - HIGH_CPU_THRESHOLD) / (100 - HIGH_CPU_THRESHOLD))
-    else:
-        score += 0.1 * (1 - cpu / HIGH_CPU_THRESHOLD)
+    cpu_norm = max(0.0, 1.0 - (cpu / 100.0))
 
-    # Memory impact
     memory = metrics.get("memory_percent", 50)
-    if memory > HIGH_MEMORY_THRESHOLD:
-        score -= 0.2 * ((memory - HIGH_MEMORY_THRESHOLD) / (100 - HIGH_MEMORY_THRESHOLD))
+    memory_norm = max(0.0, 1.0 - (memory / 100.0))
 
-    # Error rate impact
+    connections = metrics.get("active_connections", 0)
+    connections_norm = max(0.0, 1.0 - (connections / 100.0))
+
     error_rate = metrics.get("error_rate", 0)
-    if error_rate > HIGH_ERROR_RATE_THRESHOLD:
-        score -= 0.5 * (error_rate / HIGH_ERROR_RATE_THRESHOLD)
+    error_norm = max(0.0, 1.0 - min(error_rate * 20, 1.0))  # 5% error -> 0
 
-    # Success rate bonus
     success_rate = metrics.get("success_rate", 1.0)
-    score += 0.2 * success_rate
+    success_norm = min(success_rate, 1.0)
 
-    # Latency impact
     latency = metrics.get("latency_ms", 100)
-    if latency > 500:
-        score -= 0.3
-    elif latency > 200:
-        score -= 0.1
+    latency_norm = max(0.0, 1.0 - min(latency / 1000.0, 1.0))
 
-    # Active connections
-    active = metrics.get("active_connections", 0)
-    if active > 50:
-        score -= 0.1
-    elif active < 10:
-        score += 0.05
+    # Weighted sum using MODEL_WEIGHTS
+    score = (
+        1.0
+        + MODEL_WEIGHTS['cpu_weight'] * (1 - cpu_norm)
+        + MODEL_WEIGHTS['memory_weight'] * (1 - memory_norm)
+        + MODEL_WEIGHTS['connections_weight'] * (1 - connections_norm)
+        + MODEL_WEIGHTS['error_rate_weight'] * (1 - error_norm)
+        + MODEL_WEIGHTS['success_rate_weight'] * success_norm
+        + MODEL_WEIGHTS['latency_weight'] * (1 - latency_norm)
+    )
+
+    # Hard-floor for unhealthy thresholds (penalty overrides model)
+    if cpu > HIGH_CPU_THRESHOLD:
+        score -= 0.15 * ((cpu - HIGH_CPU_THRESHOLD) / (100 - HIGH_CPU_THRESHOLD))
+    if memory > HIGH_MEMORY_THRESHOLD:
+        score -= 0.10 * ((memory - HIGH_MEMORY_THRESHOLD) / (100 - HIGH_MEMORY_THRESHOLD))
+    if error_rate > HIGH_ERROR_RATE_THRESHOLD:
+        score -= 0.25 * (error_rate / HIGH_ERROR_RATE_THRESHOLD)
+    if latency > 500:
+        score -= 0.15
+    elif latency > 200:
+        score -= 0.05
 
     return max(0.0, min(1.0, score))
 
@@ -240,6 +250,60 @@ def model_info():
             "high_memory": HIGH_MEMORY_THRESHOLD,
             "high_error_rate": HIGH_ERROR_RATE_THRESHOLD
         }
+    })
+
+
+def _ensure_anomaly_detector_fitted():
+    """Lazily fit anomaly detector on accumulated metrics history."""
+    global _anomaly_detector_fitted
+    if _anomaly_detector_fitted:
+        return
+
+    # Gather enough normal data points from history
+    normal_data = []
+    for url, history in metrics_history.items():
+        for m in history:
+            normal_data.append({
+                "cpu_usage": m.get("cpu_percent", 50),
+                "memory_usage": m.get("memory_percent", 50),
+                "response_time": m.get("latency_ms", 100),
+                "active_connections": m.get("active_connections", 0),
+            })
+
+    if len(normal_data) >= 10:
+        try:
+            _anomaly_detector.fit(normal_data)
+            _anomaly_detector_fitted = True
+        except Exception as e:
+            print(f"[ML] Anomaly detector fit failed: {e}")
+
+
+@app.route("/anomalies")
+def anomalies():
+    """Return anomaly detection results for current metrics."""
+    _ensure_anomaly_detector_fitted()
+    all_metrics = collect_all_metrics()
+    results = {}
+
+    for url, metrics in all_metrics.items():
+        features = {
+            "cpu_usage": metrics.get("cpu_percent", 50),
+            "memory_usage": metrics.get("memory_percent", 50),
+            "response_time": metrics.get("latency_ms", 100),
+            "active_connections": metrics.get("active_connections", 0),
+        }
+        is_anomaly = _anomaly_detector.detect(features) if _anomaly_detector_fitted else False
+        score = _anomaly_detector.get_anomaly_scores([features])[0] if _anomaly_detector_fitted else 0.0
+        results[url] = {
+            "is_anomaly": is_anomaly,
+            "anomaly_score": round(score, 4),
+            "features": features
+        }
+
+    return jsonify({
+        "anomalies": results,
+        "detector_fitted": _anomaly_detector_fitted,
+        "timestamp": datetime.now().isoformat()
     })
 
 

@@ -4,6 +4,7 @@ services:
     build:
       context: ./services/backend
       dockerfile: Dockerfile
+    image: backend:latest
     container_name: backend-1
     hostname: backend-1
     ports:
@@ -25,6 +26,7 @@ services:
     build:
       context: ./services/backend
       dockerfile: Dockerfile
+    image: backend:latest
     container_name: backend-2
     hostname: backend-2
     ports:
@@ -46,6 +48,7 @@ services:
     build:
       context: ./services/backend
       dockerfile: Dockerfile
+    image: backend:latest
     container_name: backend-3
     hostname: backend-3
     ports:

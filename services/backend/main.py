@@ -1,3 +1,4 @@
+import asyncio
 import os
 import time
 import random
@@ -8,6 +9,8 @@ from fastapi import FastAPI
 app = FastAPI()
 
 start_time = datetime.now()
+_cpu_percent_cache = 0.0
+_cpu_percent_last_check = 0.0
 
 def get_server_id() -> str:
     return os.environ.get("HOSTNAME", "unknown")
@@ -22,7 +25,7 @@ async def process(request: dict):
     payload = request.get("payload", "")
 
     processing_time = random.uniform(0.05, 0.2)
-    time.sleep(processing_time)
+    await asyncio.sleep(processing_time)
 
     return {
         "processed": True,
@@ -34,8 +37,15 @@ async def process(request: dict):
 async def metrics():
     uptime = (datetime.now() - start_time).total_seconds()
 
+    # Non-blocking CPU read: use cached value or instantaneous read without interval
+    global _cpu_percent_cache, _cpu_percent_last_check
+    now = time.time()
+    if now - _cpu_percent_last_check > 1.0:
+        _cpu_percent_cache = psutil.cpu_percent(interval=None)
+        _cpu_percent_last_check = now
+
     return {
-        "cpu_usage": round(psutil.cpu_percent(interval=0.1), 2),
+        "cpu_usage": round(_cpu_percent_cache, 2),
         "memory_usage": round(psutil.virtual_memory().percent, 2),
         "response_time": round(random.uniform(10, 50), 2),
         "active_connections": random.randint(1, 100),

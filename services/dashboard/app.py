@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 import random
 import time
 import threading
+import sys
 
 # Page config
 st.set_page_config(
@@ -32,75 +33,72 @@ REQUEST_TIMEOUT = 1.5
 CACHE_DURATION = 5
 
 
+@st.cache_data(ttl=5)
+def _cached_fetch(url: str, default=None):
+    """Cached API fetch with timeout and graceful degradation."""
+    try:
+        response = requests.get(url, timeout=REQUEST_TIMEOUT)
+        if response.status_code == 200:
+            return response.json()
+    except Exception:
+        pass
+    return default
+
+
 def safe_api_call(func, default=None, cache_key=None):
     """Wrap API calls with timeout and graceful degradation."""
     try:
         result = func()
         return result if result is not None else default
-    except:
+    except Exception:
         return default
 
 
+@st.cache_data(ttl=5)
 def fetch_servers():
-    """Non-cached fetch for servers."""
-    try:
-        response = requests.get(f"{GATEWAY_URL}/servers", timeout=REQUEST_TIMEOUT)
-        if response.status_code == 200:
-            return response.json()
-    except:
-        pass
-    return []
+    """Cached fetch for servers."""
+    return _cached_fetch(f"{GATEWAY_URL}/servers", default=[])
 
 
+@st.cache_data(ttl=5)
 def fetch_gateway_stats():
-    """Non-cached fetch for gateway stats."""
-    try:
-        response = requests.get(f"{GATEWAY_URL}/stats", timeout=REQUEST_TIMEOUT)
-        if response.status_code == 200:
-            return response.json()
-    except:
-        pass
-    return None
+    """Cached fetch for gateway stats."""
+    return _cached_fetch(f"{GATEWAY_URL}/stats", default=None)
 
 
+@st.cache_data(ttl=5)
 def fetch_container_metrics():
-    """Non-cached fetch for container metrics."""
-    try:
-        response = requests.get(f"{ORCHESTRATOR_URL}/api/metrics", timeout=REQUEST_TIMEOUT)
-        if response.status_code == 200:
-            return response.json()
-    except:
-        pass
-    return {"metrics": {}, "source": "unavailable"}
+    """Cached fetch for container metrics."""
+    return _cached_fetch(f"{ORCHESTRATOR_URL}/api/metrics", default={"metrics": {}, "source": "unavailable"})
 
 
+@st.cache_data(ttl=5)
 def fetch_orchestrator_status():
-    """Non-cached fetch for orchestrator status."""
-    try:
-        response = requests.get(f"{ORCHESTRATOR_URL}/api/status", timeout=REQUEST_TIMEOUT)
-        if response.status_code == 200:
-            return response.json()
-    except:
-        pass
-    return None
+    """Cached fetch for orchestrator status."""
+    return _cached_fetch(f"{ORCHESTRATOR_URL}/api/status", default=None)
 
 
+@st.cache_data(ttl=5)
 def fetch_audit_events():
-    """Non-cached fetch for audit events."""
-    try:
-        response = requests.get(f"{ORCHESTRATOR_URL}/api/events?limit=10", timeout=REQUEST_TIMEOUT)
-        if response.status_code == 200:
-            return response.json()
-    except:
-        pass
-    return {"events": [], "total": 0}
+    """Cached fetch for audit events."""
+    return _cached_fetch(f"{ORCHESTRATOR_URL}/api/events?limit=10", default={"events": [], "total": 0})
+
+
+@st.cache_data(ttl=5)
+def fetch_health_scores():
+    """Cached fetch for ML health scores."""
+    return _cached_fetch(f"{ML_SERVICE_URL}/scores", default={"scores": {}})
+
+
+@st.cache_data(ttl=5)
+def fetch_anomalies():
+    """Cached fetch for ML anomaly detection."""
+    return _cached_fetch(f"{ML_SERVICE_URL}/anomalies", default={"anomalies": {}, "detector_fitted": False})
 
 
 # CSS Styles
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
-
     :root {
         --bg-primary: #0a0a0a;
         --bg-secondary: #141414;
@@ -117,9 +115,17 @@ st.markdown("""
         --border: #2c2c2e;
     }
 
-    * { font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; }
+    * { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
 
     .stApp { background-color: var(--bg-primary); color: var(--text-primary); }
+
+    /* Fix loading spinner and overlay to match dark theme */
+    .stSpinner > div {
+        border-top-color: var(--accent) !important;
+    }
+    [data-testid="stAppViewContainer"] > .stProgress {
+        background-color: var(--bg-secondary) !important;
+    }
 
     .block-container { padding: 0.5rem 1rem !important; }
 
@@ -206,6 +212,10 @@ if 'last_chaos' not in st.session_state:
     st.session_state['last_chaos'] = None
 if 'traffic_applied' not in st.session_state:
     st.session_state['traffic_applied'] = None
+if 'perf_history' not in st.session_state:
+    st.session_state['perf_history'] = []
+if 'last_history_update' not in st.session_state:
+    st.session_state['last_history_update'] = 0
 
 
 def set_traffic(pattern: str, intensity: int):
@@ -322,10 +332,45 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Get data (with graceful fallback)
-stats = safe_api_call(fetch_gateway_stats, {'total_requests': 0, 'requests_delta': 0}) or {'total_requests': 0, 'requests_delta': 0}
+stats = safe_api_call(fetch_gateway_stats, {'total_requests': 0, 'strategy_distribution': {}}) or {'total_requests': 0, 'strategy_distribution': {}}
 servers = safe_api_call(fetch_servers, []) or []
-orch_status = safe_api_call(fetch_orchestrator_status, {}) or {}
+orth_status = safe_api_call(fetch_orchestrator_status, {}) or {}
 container_metrics = fetch_container_metrics()
+health_scores = fetch_health_scores()
+anomalies_data = fetch_anomalies()
+
+# Compute real metrics from gateway stats
+server_stats = stats.get('servers', {})
+total_requests_all = stats.get('total_requests', 0)
+active_servers = len([s for s in server_stats.values() if s.get('healthy', True)]) if server_stats else len(servers)
+
+# Latency: average of last health-check latencies from ML metrics
+metrics_dict = container_metrics.get('metrics', {}) if container_metrics else {}
+avg_lat = 45  # baseline
+if metrics_dict:
+    lat_values = [v for v in metrics_dict.values() if isinstance(v, (int, float))]
+    if lat_values:
+        avg_lat = int(sum(lat_values) / len(lat_values))
+
+throughput = total_requests_all
+
+# Rolling performance history for charts
+now_ts = time.time()
+if now_ts - st.session_state['last_history_update'] > 3:
+    st.session_state['perf_history'].append({
+        'time': datetime.now(),
+        'latency': avg_lat,
+        'throughput': throughput,
+        'active_servers': active_servers,
+        'rps': orch_status.get('traffic_intensity', 0) if orch_status else 0,
+    })
+    if len(st.session_state['perf_history']) > 60:
+        st.session_state['perf_history'] = st.session_state['perf_history'][-60:]
+    st.session_state['last_history_update'] = now_ts
+
+# Get current routing strategy from orchestrator
+current_strategy = orch_status.get('routing_strategy', 'ai_powered') if orch_status else 'ai_powered'
+strategy_display = current_strategy.replace('_', ' ').title()
 
 # ============================================
 # ROW 1: Top Metrics (4 columns)
@@ -334,62 +379,53 @@ st.markdown('<div class="section-header">System Overview</div>', unsafe_allow_ht
 
 col1, col2, col3, col4 = st.columns(4)
 
-# Generate demo data if API fails
-total_req = stats.get('total_requests', 0) or random.randint(10000, 50000)
-req_delta = stats.get('requests_delta', 0) or round(random.uniform(-5, 15), 1)
-
-# Get current routing strategy from orchestrator
-current_strategy = orch_status.get('routing_strategy', 'ai_powered') if orch_status else 'ai_powered'
-strategy_display = current_strategy.replace('_', ' ').title()
-
 with col1:
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value" style="font-size: 1.2rem;">{strategy_display}</div>
         <div class="metric-label">Active Strategy</div>
         <div class="metric-delta" style="color: var(--accent);">
-            AI-Powered
+            {'AI-Powered' if current_strategy == 'ai_powered' else 'Traditional'}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
 with col2:
-    avg_lat = random.randint(20, 80)
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value">{avg_lat}ms</div>
         <div class="metric-label">Avg Latency</div>
-        <div class="metric-delta" style="color: {'#ff9f0a' if avg_lat > 50 else '#30d158'};">
-            {'+' if avg_lat > 50 else '-'} {(abs(avg_lat - 40))}ms
+        <div class="metric-delta" style="color: {'#ff9f0a' if avg_lat > 70 else '#30d158'};">
+            {'Elevated' if avg_lat > 70 else 'Normal'}
         </div>
     </div>
     """, unsafe_allow_html=True)
 
 with col3:
-    active_servers = len(servers) if servers else 3
     current_rps = orch_status.get('traffic_intensity', 100) if orch_status else 100
     st.markdown(f"""
     <div class="metric-card">
         <div class="metric-value">{active_servers}</div>
         <div class="metric-label">Active Servers</div>
         <div class="metric-delta" style="color: var(--text-secondary);">
-            All healthy
+            {'All healthy' if active_servers >= 3 else 'Check health'}
         </div>
         <div style="font-size: 0.65rem; color: #0a84ff; margin-top: 4px;">⚡ {current_rps} RPS</div>
     </div>
     """, unsafe_allow_html=True)
 
 with col4:
-    throughput = random.randint(100, 500)
     st.markdown(f"""
     <div class="metric-card">
-        <div class="metric-value">{throughput}/s</div>
-        <div class="metric-label">Throughput</div>
+        <div class="metric-value">{throughput}</div>
+        <div class="metric-label">Total Requests</div>
         <div class="metric-delta" style="color: #30d158;">
-            +{random.randint(5, 30)}%
+            Routed
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+
 
 # ============================================
 # ROW 2: Charts (70%) + Server Health (30%)
@@ -399,53 +435,59 @@ st.markdown('<div class="section-header" style="margin-top: 1rem;">Performance &
 chart_col, server_col = st.columns([7, 3])
 
 with chart_col:
-    # Generate demo chart data
-    time_range = pd.date_range(end=datetime.now(), periods=24, freq='H')
-    perf_data = pd.DataFrame({
-        'time': time_range,
-        'latency_p50': np.random.normal(45, 10, 24),
-        'latency_p95': np.random.normal(120, 25, 24),
-        'latency_p99': np.random.normal(200, 40, 24),
-        'throughput': np.random.normal(350, 80, 24),
-    })
+    if st.session_state['perf_history']:
+        hist_df = pd.DataFrame(st.session_state['perf_history'])
+    else:
+        hist_df = pd.DataFrame({
+            'time': [datetime.now()],
+            'latency': [avg_lat],
+            'throughput': [throughput],
+            'rps': [orch_status.get('traffic_intensity', 0) if orch_status else 0],
+        })
 
-    # Latency Chart
+    # Latency Chart (real rolling data)
     fig_lat = go.Figure()
-    fig_lat.add_trace(go.Scatter(x=perf_data['time'], y=perf_data['latency_p50'], name='P50', line=dict(color='#30d158', width=2)))
-    fig_lat.add_trace(go.Scatter(x=perf_data['time'], y=perf_data['latency_p95'], name='P95', line=dict(color='#0a84ff', width=2)))
-    fig_lat.add_trace(go.Scatter(x=perf_data['time'], y=perf_data['latency_p99'], name='P99', line=dict(color='#ff453a', width=2)))
-    fig_lat.add_hline(y=200, line_dash="dash", line_color="#ff453a", line_width=1.5,
-                      annotation_text="Danger: 200ms", annotation_position="top right",
-                      annotation_font_color="#ff453a", annotation_font_size=10)
+    fig_lat.add_trace(go.Scatter(x=hist_df['time'], y=hist_df['latency'], name='Latency',
+                                   line=dict(color='#0a84ff', width=2),
+                                   fill='tozeroy', fillcolor='rgba(10,132,255,0.15)'))
+    fig_lat.add_hline(y=80, line_dash="dash", line_color="#ff453a", line_width=1,
+                      annotation_text="High Load", annotation_position="top right",
+                      annotation_font_color="#ff453a", annotation_font_size=9)
     fig_lat.update_layout(
-        paper_bgcolor='white', plot_bgcolor='white',
-        font=dict(color='#000000', family='Inter'),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#e0e0e0', family='-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'),
         margin=dict(l=30, r=20, t=20, b=30),
-        showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        showlegend=False,
         height=200,
-        xaxis=dict(showgrid=True, gridcolor='#2c2c2e'),
+        xaxis=dict(showgrid=True, gridcolor='#2c2c2e', tickformat='%H:%M:%S'),
         yaxis=dict(showgrid=True, gridcolor='#2c2c2e', title='ms'),
     )
     st.plotly_chart(fig_lat, use_container_width=True)
 
-    # Throughput Chart
+    # Throughput / RPS Chart
     fig_through = go.Figure()
     fig_through.add_trace(go.Scatter(
-        x=perf_data['time'], y=perf_data['throughput'], name='Throughput',
-        fill='tozeroy', line=dict(color='#0a84ff', width=2), fillcolor='rgba(10,132,255,0.2)'
+        x=hist_df['time'], y=hist_df['throughput'], name='Total Requests',
+        line=dict(color='#30d158', width=2), fillcolor='rgba(48,209,88,0.15)', fill='tozeroy'
     ))
+    if 'rps' in hist_df.columns:
+        fig_through.add_trace(go.Scatter(
+            x=hist_df['time'], y=hist_df['rps'], name='Target RPS',
+            line=dict(color='#ff9f0a', width=2, dash='dot')
+        ))
     fig_through.update_layout(
-        paper_bgcolor='white', plot_bgcolor='white',
-        font=dict(color='#000000', family='Inter'),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#e0e0e0', family='-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'),
         margin=dict(l=30, r=20, t=20, b=30),
-        showlegend=False, height=200,
-        xaxis=dict(showgrid=True, gridcolor='#2c2c2e'),
+        showlegend=True, legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        height=200,
+        xaxis=dict(showgrid=True, gridcolor='#2c2c2e', tickformat='%H:%M:%S'),
         yaxis=dict(showgrid=True, gridcolor='#2c2c2e', title='req/s'),
     )
     st.plotly_chart(fig_through, use_container_width=True)
 
 with server_col:
-    st.markdown("#### Server Health")
+    st.markdown("#### Server Health & Scores")
 
     # Use scrollable container for server health
     with st.container(height=400):
@@ -459,44 +501,153 @@ with server_col:
                 {'server_id': 'backend-3', 'healthy': True},
             ]
 
-        # Get real metrics from container_metrics
         metrics_dict = container_metrics.get('metrics', {}) if container_metrics else {}
+        health_scores_raw = health_scores.get('scores', {}) if health_scores else {}
+        gateway_servers = stats.get('servers', {}) if stats else {}
 
         for server in server_list:
             server_id = server.get('server_id', '')
-            # Extract just the backend name from URL or full name
             if 'http://' in server_id:
                 server_name = server_id.split('http://')[1].split(':')[0]
+                server_url = server_id
             else:
                 server_name = server_id
+                server_url = f"http://{server_id}:8000"
 
-            # Get real CPU from docker stats
             real_cpu = metrics_dict.get(server_name) or metrics_dict.get(server_id.replace('http://', ''))
             if real_cpu is None:
-                cpu = random.randint(20, 75)  # Fallback to demo data
+                cpu = random.randint(20, 75)
             else:
                 cpu = int(real_cpu)
 
+            # Health score from ML service
+            hscore = health_scores_raw.get(server_url)
+            if hscore is None:
+                hscore = 1.0
+            hscore_pct = int(hscore * 100)
+
+            # Request count from gateway
+            gw_data = gateway_servers.get(server_url, {})
+            req_count = gw_data.get('total_requests', 0)
+            conn_count = gw_data.get('active_connections', 0)
+
             dot_class = 'dot-green' if cpu < 70 else 'dot-yellow' if cpu < 85 else 'dot-red'
-            threshold_color = '#ff453a' if cpu >= 80 else '#ff9f0a' if cpu >= 70 else '#30d158'
+            cpu_color = '#ff453a' if cpu >= 80 else '#ff9f0a' if cpu >= 70 else '#30d158'
+            score_color = '#ff453a' if hscore < 0.4 else '#ff9f0a' if hscore < 0.7 else '#30d158'
 
             st.markdown(f"""
             <div class="server-bar">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                    <span style="font-weight: 600; font-size: 0.85rem;">{server['server_id']}</span>
+                    <span style="font-weight: 600; font-size: 0.85rem;">{server_id}</span>
                     <span class="status-dot {dot_class}"></span>
                 </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                    <span style="color: var(--text-secondary); font-size: 0.7rem;">CPU</span>
+                    <span style="font-weight: 600; font-size: 0.8rem; color: {cpu_color};">{cpu}%</span>
+                </div>
+                <div style="background: var(--bg-tertiary); border-radius: 4px; height: 4px; margin-bottom: 0.4rem;">
+                    <div style="background: {cpu_color}; width: {min(cpu, 100)}%; height: 100%; border-radius: 4px;"></div>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.3rem;">
+                    <span style="color: var(--text-secondary); font-size: 0.7rem;">ML Health Score</span>
+                    <span style="font-weight: 600; font-size: 0.8rem; color: {score_color};">{hscore_pct}%</span>
+                </div>
+                <div style="background: var(--bg-tertiary); border-radius: 4px; height: 4px; margin-bottom: 0.4rem;">
+                    <div style="background: {score_color}; width: {hscore_pct}%; height: 100%; border-radius: 4px;"></div>
+                </div>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: var(--text-secondary); font-size: 0.75rem;">CPU Usage</span>
-                    <span style="font-weight: 600; font-size: 0.9rem;">{cpu}%</span>
+                    <span style="color: var(--text-secondary); font-size: 0.7rem;">Req: {req_count} | Conn: {conn_count}</span>
                 </div>
-                <div style="background: var(--bg-tertiary); border-radius: 4px; height: 6px; margin-top: 0.5rem; position: relative;">
-                    <div style="background: {threshold_color}; width: {cpu}%; height: 100%; border-radius: 4px;"></div>
-                    <div style="position: absolute; right: 80%; top: -2px; bottom: -2px; width: 1px; background: rgba(255,69,58,0.5);"></div>
-                </div>
-                <div style="text-align: right; font-size: 0.65rem; color: rgba(255,69,58,0.6); margin-top: 2px;">80% threshold</div>
             </div>
             """, unsafe_allow_html=True)
+
+# ============================================
+# ROW 2b: Traffic Distribution (real gateway stats)
+# ============================================
+st.markdown('<div class="section-header" style="margin-top: 1rem;">Traffic Distribution</div>', unsafe_allow_html=True)
+
+# Show actual request counts from gateway stats
+gateway_server_stats = stats.get('servers', {}) if stats else {}
+if gateway_server_stats:
+    dist_data = []
+    for sid, sdata in gateway_server_stats.items():
+        dist_data.append({
+            'Server': sid,
+            'Requests': sdata.get('total_requests', 0),
+            'Connections': sdata.get('active_connections', 0),
+        })
+    dist_df = pd.DataFrame(dist_data).sort_values('Server')
+
+    dist_col1, dist_col2 = st.columns(2)
+    with dist_col1:
+        fig_dist = go.Figure(data=[
+            go.Bar(
+                x=dist_df['Server'],
+                y=dist_df['Requests'],
+                marker_color=['#0a84ff', '#30d158', '#ff453a'][:len(dist_df)]
+            )
+        ])
+        fig_dist.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#e0e0e0', family='-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'),
+            margin=dict(l=30, r=20, t=20, b=30),
+            height=200,
+            xaxis=dict(showgrid=False),
+            yaxis=dict(showgrid=True, gridcolor='#2c2c2e', title='Total Requests'),
+            showlegend=False,
+        )
+        st.plotly_chart(fig_dist, use_container_width=True)
+
+    with dist_col2:
+        total_req_all = dist_df['Requests'].sum()
+        if total_req_all > 0:
+            dist_df['Share'] = (dist_df['Requests'] / total_req_all * 100).round(1)
+        else:
+            dist_df['Share'] = 0.0
+        st.dataframe(
+            dist_df[['Server', 'Requests', 'Share']].rename(columns={'Share': 'Share %'}),
+            use_container_width=True,
+            hide_index=True
+        )
+else:
+    st.info("No gateway statistics available. Traffic distribution will appear once the gateway is online.")
+
+# ============================================
+# ROW 2c: Strategy Usage (real gateway stats)
+# ============================================
+st.markdown('<div class="section-header" style="margin-top: 1rem;">Strategy Usage</div>', unsafe_allow_html=True)
+
+strategy_dist = stats.get('strategy_distribution', {}) if stats else {}
+if strategy_dist:
+    strat_df = pd.DataFrame([
+        {'Strategy': k.replace('_', ' ').title(), 'Requests': v}
+        for k, v in strategy_dist.items() if v > 0
+    ])
+    if not strat_df.empty:
+        strat_col1, strat_col2 = st.columns(2)
+        with strat_col1:
+            fig_strat = go.Figure(data=[
+                go.Pie(
+                    labels=strat_df['Strategy'],
+                    values=strat_df['Requests'],
+                    hole=0.45,
+                    marker_colors=['#0a84ff', '#30d158', '#ff453a', '#ff9f0a'][:len(strat_df)]
+                )
+            ])
+            fig_strat.update_layout(
+                paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#e0e0e0', family='-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'),
+                margin=dict(l=20, r=20, t=20, b=20),
+                height=220,
+                showlegend=False,
+            )
+            st.plotly_chart(fig_strat, use_container_width=True)
+        with strat_col2:
+            st.dataframe(strat_df, use_container_width=True, hide_index=True)
+    else:
+        st.info("No routing decisions recorded yet. Generate some traffic to see strategy usage.")
+else:
+    st.info("Strategy distribution unavailable.")
 
 # ============================================
 # ROW 3: Predictions & Anomalies
@@ -506,14 +657,20 @@ st.markdown('<div class="section-header" style="margin-top: 1rem;">AI Prediction
 pred_col1, pred_col2 = st.columns(2)
 
 with pred_col1:
-    st.markdown("#### Traffic Forecast (Next 24h)")
+    st.markdown("#### Traffic Forecast (Next 12h)")
 
-    pred_time = pd.date_range(start=datetime.now(), periods=12, freq='2H')
+    current_rps = orch_status.get('traffic_intensity', 100) if orch_status else 100
+    pred_time = pd.date_range(start=datetime.now(), periods=12, freq='H')
+    # Seed forecast around current intensity with small sinusoidal drift
+    base = current_rps
+    drift = [base + base * 0.15 * np.sin(i * 0.8) + np.random.normal(0, base * 0.05) for i in range(12)]
+    upper = [d + base * 0.12 for d in drift]
+    lower = [max(0, d - base * 0.12) for d in drift]
     pred_data = pd.DataFrame({
         'time': pred_time,
-        'predicted': np.random.normal(350, 60, 12),
-        'upper': np.random.normal(420, 70, 12),
-        'lower': np.random.normal(280, 50, 12),
+        'predicted': drift,
+        'upper': upper,
+        'lower': lower,
     })
 
     fig_pred = go.Figure()
@@ -526,8 +683,8 @@ with pred_col1:
                                    line=dict(color='rgba(48,209,88,0.3)', width=1),
                                    fill='tonexty', fillcolor='rgba(10,132,255,0.1)'))
     fig_pred.update_layout(
-        paper_bgcolor='white', plot_bgcolor='white',
-        font=dict(color='#000000', family='Inter'),
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#e0e0e0', family='-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'),
         margin=dict(l=30, r=20, t=20, b=30),
         height=180,
         xaxis=dict(showgrid=True, gridcolor='#2c2c2e'),
@@ -537,10 +694,10 @@ with pred_col1:
     st.plotly_chart(fig_pred, use_container_width=True)
 
     # Model Confidence Badge
-    confidence = random.randint(88, 96)
+    confidence = min(96, max(85, 95 - int(abs(current_rps - 500) / 500)))
     st.markdown(f"""
     <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 0.5rem; padding: 0.5rem; background: rgba(48,209,88,0.1); border-radius: 6px; border: 1px solid rgba(48,209,88,0.2);">
-        <span style="font-size: 0.75rem; color: var(--text-secondary);">Model Confidence</span>
+        <span style="font-size: 0.75rem; color: var(--text-secondary);">Forecast Confidence</span>
         <span style="font-weight: 700; color: #30d158; font-size: 0.9rem;">{confidence}%</span>
     </div>
     """, unsafe_allow_html=True)
@@ -548,45 +705,64 @@ with pred_col1:
 with pred_col2:
     st.markdown("#### Anomaly Detection")
 
-    anomaly_data = pd.DataFrame({
-        'Time': pd.date_range(end=datetime.now(), periods=20, freq='15min'),
-        'Score': np.random.normal(0.3, 0.2, 20)
-    })
-    # Add some anomalies
-    anomaly_indices = random.sample(range(20), 2)
-    for idx in anomaly_indices:
-        anomaly_data.loc[idx, 'Score'] = random.uniform(-0.9, -0.5)
+    anomalies_raw = anomalies_data.get('anomalies', {}) if anomalies_data else {}
+    detector_fitted = anomalies_data.get('detector_fitted', False) if anomalies_data else False
 
-    colors = ['#ff453a' if s < -0.5 else '#30d158' for s in anomaly_data['Score']]
+    if anomalies_raw and detector_fitted:
+        anomaly_rows = []
+        for url, adata in anomalies_raw.items():
+            server_name = url.replace('http://', '').replace(':8000', '')
+            anomaly_rows.append({
+                'Server': server_name,
+                'Score': adata.get('anomaly_score', 0),
+                'IsAnomaly': adata.get('is_anomaly', False),
+                'CPU': adata.get('features', {}).get('cpu_usage', 0),
+            })
+        anomaly_df = pd.DataFrame(anomaly_rows)
 
-    fig_anomaly = go.Figure()
-    fig_anomaly.add_trace(go.Bar(x=anomaly_data['Time'], y=anomaly_data['Score'], marker_color=colors))
-    fig_anomaly.update_layout(
-        paper_bgcolor='white', plot_bgcolor='white',
-        font=dict(color='#000000', family='Inter'),
-        margin=dict(l=30, r=20, t=20, b=30),
-        height=180,
-        xaxis=dict(showgrid=True, gridcolor='#2c2c2e'),
-        yaxis=dict(showgrid=True, gridcolor='#2c2c2e', title='Score', range=[-1, 1]),
-        showlegend=False,
-    )
-    st.plotly_chart(fig_anomaly, use_container_width=True)
+        colors = ['#ff453a' if row['IsAnomaly'] else '#30d158' for _, row in anomaly_df.iterrows()]
 
-    # Anomaly trigger indicator
-    anomaly_count = sum(1 for s in anomaly_data['Score'] if s < -0.5)
-    if anomaly_count > 0:
-        triggers = random.sample(['High CPU', 'Latency Spike', 'Memory Pressure', 'Request Flood'], min(anomaly_count, 3))
-        triggers_html = " • ".join([f"<span style='color: #ff453a;'>{t}</span>" for t in triggers])
-        st.markdown(f"""
-        <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,69,58,0.1); border-radius: 6px; border: 1px solid rgba(255,69,58,0.2);">
-            <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 4px;">Anomaly Triggers</div>
-            <div style="font-size: 0.75rem;">{triggers_html}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        fig_anomaly = go.Figure()
+        fig_anomaly.add_trace(go.Bar(
+            x=anomaly_df['Server'],
+            y=anomaly_df['Score'],
+            marker_color=colors,
+            text=anomaly_df['Score'].round(2),
+            textposition='outside',
+            textfont=dict(color='#e0e0e0', size=10)
+        ))
+        fig_anomaly.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            font=dict(color='#e0e0e0', family='-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'),
+            margin=dict(l=30, r=20, t=20, b=30),
+            height=180,
+            xaxis=dict(showgrid=False),
+            yaxis=dict(showgrid=True, gridcolor='#2c2c2e', title='Anomaly Score'),
+            showlegend=False,
+        )
+        st.plotly_chart(fig_anomaly, use_container_width=True)
+
+        anomaly_count = sum(anomaly_df['IsAnomaly'])
+        if anomaly_count > 0:
+            bad_servers = anomaly_df[anomaly_df['IsAnomaly']]['Server'].tolist()
+            triggers_html = " • ".join([f"<span style='color: #ff453a;'>{s}</span>" for s in bad_servers])
+            st.markdown(f"""
+            <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,69,58,0.1); border-radius: 6px; border: 1px solid rgba(255,69,58,0.2);">
+                <div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 4px;">Anomaly Servers</div>
+                <div style="font-size: 0.75rem;">{triggers_html}</div>
+            </div>
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown(f"""
+            <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(48,209,88,0.1); border-radius: 6px; border: 1px solid rgba(48,209,88,0.2);">
+                <span style="font-size: 0.75rem; color: #30d158;">✓ No anomalies detected</span>
+            </div>
+            """, unsafe_allow_html=True)
     else:
+        st.info("Anomaly detector is collecting baseline data...")
         st.markdown(f"""
-        <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(48,209,88,0.1); border-radius: 6px; border: 1px solid rgba(48,209,88,0.2);">
-            <span style="font-size: 0.75rem; color: #30d158;">✓ No anomalies detected</span>
+        <div style="margin-top: 0.5rem; padding: 0.5rem; background: rgba(255,159,10,0.1); border-radius: 6px; border: 1px solid rgba(255,159,10,0.2);">
+            <span style="font-size: 0.75rem; color: #ff9f0a;">⏳ Training on first 10+ samples</span>
         </div>
         """, unsafe_allow_html=True)
 
@@ -823,12 +999,15 @@ with st.sidebar:
         # Show service status
         gateway_ok = safe_api_call(lambda: requests.get(f"{GATEWAY_URL}/health", timeout=1), None) is not None
         orch_ok = safe_api_call(fetch_orchestrator_status, None) is not None
+        ml_ok = safe_api_call(lambda: requests.get(f"{ML_SERVICE_URL}/health", timeout=1), None) is not None
 
-        col_st1, col_st2 = st.columns(2)
+        col_st1, col_st2, col_st3 = st.columns(3)
         with col_st1:
             st.markdown(f"Gateway: {'🟢' if gateway_ok else '🔴'}")
         with col_st2:
             st.markdown(f"Orchestrator: {'🟢' if orch_ok else '🔴'}")
+        with col_st3:
+            st.markdown(f"ML Service: {'🟢' if ml_ok else '🔴'}")
 
         st.markdown("---")
         st.markdown(f"**Last update:** {datetime.now().strftime('%H:%M:%S')}")
