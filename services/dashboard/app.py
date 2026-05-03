@@ -29,17 +29,25 @@ ML_SERVICE_URL = "http://ml-service:8000"
 ORCHESTRATOR_URL = "http://orchestrator:8002"
 REQUEST_TIMEOUT = 1.5
 
-# Cache duration (seconds) - kept short so data doesn't stay stale
-CACHE_DURATION = 5
+# Lightweight manual cache (1-second TTL) so data refreshes on every reload
+_fetch_cache: dict = {}
+CACHE_TTL = 1.0
 
 
-@st.cache_data(ttl=5, show_spinner=False)
 def _cached_fetch(url: str, default=None):
-    """Cached API fetch with timeout and graceful degradation."""
+    """Fetch with a short 1-second manual cache to avoid duplicate calls
+    within the same render while still delivering fresh data every reload."""
+    now = time.time()
+    if url in _fetch_cache:
+        cached_time, cached_data = _fetch_cache[url]
+        if now - cached_time < CACHE_TTL:
+            return cached_data
     try:
         response = requests.get(url, timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
-            return response.json()
+            data = response.json()
+            _fetch_cache[url] = (now, data)
+            return data
     except Exception:
         pass
     return default
@@ -54,45 +62,38 @@ def safe_api_call(func, default=None, cache_key=None):
         return default
 
 
-@st.cache_data(ttl=5, show_spinner=False)
 def fetch_servers():
-    """Cached fetch for servers."""
+    """Fetch servers from gateway."""
     return _cached_fetch(f"{GATEWAY_URL}/servers", default=[])
 
 
-@st.cache_data(ttl=5, show_spinner=False)
 def fetch_gateway_stats():
-    """Cached fetch for gateway stats."""
+    """Fetch gateway routing statistics."""
     return _cached_fetch(f"{GATEWAY_URL}/stats", default=None)
 
 
-@st.cache_data(ttl=5, show_spinner=False)
 def fetch_container_metrics():
-    """Cached fetch for container metrics."""
+    """Fetch container metrics from orchestrator."""
     return _cached_fetch(f"{ORCHESTRATOR_URL}/api/metrics", default={"metrics": {}, "source": "unavailable"})
 
 
-@st.cache_data(ttl=5, show_spinner=False)
 def fetch_orchestrator_status():
-    """Cached fetch for orchestrator status."""
+    """Fetch orchestrator status."""
     return _cached_fetch(f"{ORCHESTRATOR_URL}/api/status", default=None)
 
 
-@st.cache_data(ttl=5, show_spinner=False)
 def fetch_audit_events():
-    """Cached fetch for audit events."""
+    """Fetch audit events from orchestrator."""
     return _cached_fetch(f"{ORCHESTRATOR_URL}/api/events?limit=10", default={"events": [], "total": 0})
 
 
-@st.cache_data(ttl=5, show_spinner=False)
 def fetch_health_scores():
-    """Cached fetch for ML health scores."""
+    """Fetch ML health scores."""
     return _cached_fetch(f"{ML_SERVICE_URL}/scores", default={"scores": {}})
 
 
-@st.cache_data(ttl=5, show_spinner=False)
 def fetch_anomalies():
-    """Cached fetch for ML anomaly detection."""
+    """Fetch ML anomaly detection results."""
     return _cached_fetch(f"{ML_SERVICE_URL}/anomalies", default={"anomalies": {}, "detector_fitted": False})
 
 
@@ -111,6 +112,16 @@ if 'sidebar_tab' not in st.session_state:
     st.session_state['sidebar_tab'] = 'manual'
 if 'auto_refresh' not in st.session_state:
     st.session_state['auto_refresh'] = True
+
+# Persist refresh settings across page reloads via URL query params
+_query = st.query_params
+if "refresh" in _query:
+    try:
+        st.session_state['refresh_interval'] = max(1, min(60, int(_query["refresh"])))
+    except ValueError:
+        pass
+if "auto_refresh" in _query:
+    st.session_state['auto_refresh'] = _query["auto_refresh"].lower() == "true"
 
 # Auto-refresh via JavaScript that waits for page load before starting timer.
 # This prevents the reload-loop caused by <meta http-equiv="refresh"> which
@@ -1021,6 +1032,7 @@ with st.sidebar:
         )
         if auto_refresh != st.session_state['auto_refresh']:
             st.session_state['auto_refresh'] = auto_refresh
+            st.query_params["auto_refresh"] = str(auto_refresh).lower()
             st.rerun()
 
         refresh_interval = st.slider(
@@ -1033,6 +1045,7 @@ with st.sidebar:
         )
         if refresh_interval != st.session_state['refresh_interval']:
             st.session_state['refresh_interval'] = refresh_interval
+            st.query_params["refresh"] = str(refresh_interval)
             st.rerun()
 
         st.markdown("---")
