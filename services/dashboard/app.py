@@ -29,18 +29,22 @@ ML_SERVICE_URL = "http://ml-service:8000"
 ORCHESTRATOR_URL = "http://orchestrator:8002"
 REQUEST_TIMEOUT = 1.5
 
-# Module-level traffic generator state (persists across Streamlit sessions)
-_traffic_thread = None
-_traffic_lock = threading.Lock()
-_traffic_state = {"active": False, "rps": 0, "strategy": "ai_powered"}
 
 def _cached_fetch(url: str, default=None):
-    """Direct API fetch with timeout and graceful degradation.
-    No caching — every call hits the service for truly live data."""
+    """Fetch with a 1-second session-state cache so reruns are fast
+    but data is still refreshed on every auto-refresh cycle."""
+    now = time.time()
+    cache_key = f"__api_cache_{url}"
+    if cache_key in st.session_state:
+        cached_time, cached_data = st.session_state[cache_key]
+        if now - cached_time < 1.0:
+            return cached_data
     try:
         response = requests.get(url, timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
-            return response.json()
+            data = response.json()
+            st.session_state[cache_key] = (now, data)
+            return data
     except Exception:
         pass
     return default
@@ -93,7 +97,7 @@ def fetch_anomalies():
     return _cached_fetch(f"{ML_SERVICE_URL}/anomalies", default={"anomalies": {}, "detector_fitted": False})
 
 
-# Initialize session state early (before any widget or meta tag uses it)
+# Initialize session state early (before any widget uses it)
 if 'last_chaos' not in st.session_state:
     st.session_state['last_chaos'] = None
 if 'traffic_applied' not in st.session_state:
@@ -103,46 +107,17 @@ if 'perf_history' not in st.session_state:
 if 'last_history_update' not in st.session_state:
     st.session_state['last_history_update'] = 0
 if 'refresh_interval' not in st.session_state:
-    st.session_state['refresh_interval'] = 10
+    st.session_state['refresh_interval'] = 3
 if 'sidebar_tab' not in st.session_state:
     st.session_state['sidebar_tab'] = 'manual'
 if 'auto_refresh' not in st.session_state:
     st.session_state['auto_refresh'] = True
-
-# Persist refresh settings across page reloads via URL query params
-_query = st.query_params
-if "refresh" in _query:
-    try:
-        st.session_state['refresh_interval'] = max(1, min(60, int(_query["refresh"])))
-    except ValueError:
-        pass
-if "auto_refresh" in _query:
-    st.session_state['auto_refresh'] = _query["auto_refresh"].lower() == "true"
-
-# Auto-refresh via JavaScript that waits for page load before starting timer.
-# This prevents the reload-loop caused by <meta http-equiv="refresh"> which
-# fires while Streamlit is still executing the Python script.
-if st.session_state['auto_refresh']:
-    st.markdown(
-        f"""
-        <script>
-        (function() {{
-            var intervalSec = {st.session_state['refresh_interval']};
-            function scheduleReload() {{
-                setTimeout(function() {{
-                    window.location.reload();
-                }}, intervalSec * 1000);
-            }}
-            if (document.readyState === 'complete') {{
-                scheduleReload();
-            }} else {{
-                window.addEventListener('load', scheduleReload);
-            }}
-        }})();
-        </script>
-        """,
-        unsafe_allow_html=True
-    )
+if 'traffic_state' not in st.session_state:
+    st.session_state['traffic_state'] = {"active": False, "rps": 0, "strategy": "ai_powered"}
+if 'traffic_lock' not in st.session_state:
+    st.session_state['traffic_lock'] = threading.Lock()
+if 'traffic_thread' not in st.session_state:
+    st.session_state['traffic_thread'] = None
 
 # CSS Styles
 st.markdown("""
@@ -307,15 +282,17 @@ def show_toast(message: str, icon: str = "✅"):
 
 
 # Traffic generator state
-def _traffic_generator_loop():
+def _traffic_generator_loop(state_dict, lock):
     """Background thread that sends load to the gateway.
-    Uses module-level _traffic_state so it survives page reloads."""
+    Reads from a mutable dict stored in session_state so it survives
+    Streamlit reruns and full page reloads are not needed."""
     while True:
-        with _traffic_lock:
-            if not _traffic_state["active"]:
-                break
-            strategy = _traffic_state["strategy"]
-            rps = _traffic_state["rps"]
+        with lock:
+            active = state_dict["active"]
+            strategy = state_dict["strategy"]
+            rps = state_dict["rps"]
+        if not active:
+            break
         interval = 1.0 / max(rps, 1)
         try:
             requests.get(
@@ -327,44 +304,41 @@ def _traffic_generator_loop():
         time.sleep(interval)
 
 
+def _ensure_traffic_generator():
+    """Ensure the background traffic thread is running if it should be."""
+    state = st.session_state['traffic_state']
+    lock = st.session_state['traffic_lock']
+    thread = st.session_state['traffic_thread']
+
+    if state['active']:
+        if thread is None or not thread.is_alive():
+            new_thread = threading.Thread(
+                target=_traffic_generator_loop,
+                args=(state, lock),
+                daemon=True
+            )
+            new_thread.start()
+            st.session_state['traffic_thread'] = new_thread
+
+
 def start_traffic_generator(rps: int, strategy: str):
     """Start traffic generation in a background thread."""
-    global _traffic_thread
-    # Stop any existing traffic first
-    stop_traffic_generator()
-    time.sleep(0.2)
-
-    with _traffic_lock:
-        _traffic_state["active"] = True
-        _traffic_state["rps"] = rps
-        _traffic_state["strategy"] = strategy
-
-    thread = threading.Thread(target=_traffic_generator_loop, daemon=True)
-    thread.start()
-    _traffic_thread = thread
-
-    # Sync to session state so UI can read it
-    st.session_state['traffic_running'] = True
-    st.session_state['traffic_rps'] = rps
+    st.session_state['traffic_state']['active'] = True
+    st.session_state['traffic_state']['rps'] = rps
+    st.session_state['traffic_state']['strategy'] = strategy
+    _ensure_traffic_generator()
 
 
 def stop_traffic_generator():
     """Stop traffic generation."""
-    global _traffic_thread
-    with _traffic_lock:
-        _traffic_state["active"] = False
-    _traffic_thread = None
-    st.session_state['traffic_running'] = False
-    st.session_state['traffic_rps'] = 0
+    st.session_state['traffic_state']['active'] = False
+    st.session_state['traffic_thread'] = None
 
 
 def update_traffic_strategy(strategy: str):
     """Update routing strategy on the running traffic generator."""
-    with _traffic_lock:
-        _traffic_state["strategy"] = strategy
-    # Restart with new strategy if currently running
-    if _traffic_state["active"]:
-        start_traffic_generator(_traffic_state["rps"], strategy)
+    st.session_state['traffic_state']['strategy'] = strategy
+    _ensure_traffic_generator()
 
 
 # ============================================
@@ -389,6 +363,9 @@ orch_status = safe_api_call(fetch_orchestrator_status, {}) or {}
 container_metrics = fetch_container_metrics()
 health_scores = fetch_health_scores()
 anomalies_data = fetch_anomalies()
+
+# Keep traffic generator alive across reruns
+_ensure_traffic_generator()
 
 # Compute real metrics from gateway stats
 server_stats = stats.get('servers', {})
@@ -1138,5 +1115,8 @@ else:
     with st.expander("System Audit Log", expanded=False):
         st.info("No system events recorded yet. Events will appear as you interact with the system.")
 
-# Dashboard auto-refreshes every N seconds via HTML meta refresh tag.
-# The cache ensures API calls are deduplicated within the TTL window.
+# Auto-refresh using st.rerun() — keeps session_state alive so the
+# background traffic thread and perf_history persist across updates.
+if st.session_state.get('auto_refresh', True):
+    time.sleep(st.session_state.get('refresh_interval', 3))
+    st.rerun()
