@@ -96,6 +96,20 @@ def fetch_anomalies():
     return _cached_fetch(f"{ML_SERVICE_URL}/anomalies", default={"anomalies": {}, "detector_fitted": False})
 
 
+# Initialize session state early (before any widget or meta tag uses it)
+if 'last_chaos' not in st.session_state:
+    st.session_state['last_chaos'] = None
+if 'traffic_applied' not in st.session_state:
+    st.session_state['traffic_applied'] = None
+if 'perf_history' not in st.session_state:
+    st.session_state['perf_history'] = []
+if 'last_history_update' not in st.session_state:
+    st.session_state['last_history_update'] = 0
+if 'refresh_interval' not in st.session_state:
+    st.session_state['refresh_interval'] = 3
+if 'sidebar_tab' not in st.session_state:
+    st.session_state['sidebar_tab'] = 'manual'
+
 # Auto-refresh the entire page so charts/metrics update in real time
 st.markdown(
     f'<meta http-equiv="refresh" content="{st.session_state["refresh_interval"]}">',
@@ -211,19 +225,6 @@ st.markdown("""
     .toast-container { position: fixed; bottom: 20px; right: 20px; z-index: 9999; }
 </style>
 """, unsafe_allow_html=True)
-
-
-# Initialize session state
-if 'last_chaos' not in st.session_state:
-    st.session_state['last_chaos'] = None
-if 'traffic_applied' not in st.session_state:
-    st.session_state['traffic_applied'] = None
-if 'perf_history' not in st.session_state:
-    st.session_state['perf_history'] = []
-if 'last_history_update' not in st.session_state:
-    st.session_state['last_history_update'] = 0
-if 'refresh_interval' not in st.session_state:
-    st.session_state['refresh_interval'] = 3
 
 
 def set_traffic(pattern: str, intensity: int):
@@ -781,10 +782,6 @@ with pred_col2:
 
 with st.sidebar:
     st.markdown("### Command Center")
-
-    # Tab selector using columns
-    if 'sidebar_tab' not in st.session_state:
-        st.session_state.sidebar_tab = 'manual'
 
     tab_cols = st.columns(3)
     with tab_cols[0]:
