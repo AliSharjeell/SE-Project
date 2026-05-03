@@ -364,7 +364,7 @@ st.markdown("""
 # Get data (with graceful fallback)
 stats = safe_api_call(fetch_gateway_stats, {'total_requests': 0, 'strategy_distribution': {}}) or {'total_requests': 0, 'strategy_distribution': {}}
 servers = safe_api_call(fetch_servers, []) or []
-orth_status = safe_api_call(fetch_orchestrator_status, {}) or {}
+orch_status = safe_api_call(fetch_orchestrator_status, {}) or {}
 container_metrics = fetch_container_metrics()
 health_scores = fetch_health_scores()
 anomalies_data = fetch_anomalies()
