@@ -29,31 +29,24 @@ ML_SERVICE_URL = "http://ml-service:8000"
 ORCHESTRATOR_URL = "http://orchestrator:8002"
 REQUEST_TIMEOUT = 1.5
 
-# Lightweight manual cache (1-second TTL) so data refreshes on every reload
-_fetch_cache: dict = {}
-CACHE_TTL = 1.0
-
+# Module-level traffic generator state (persists across Streamlit sessions)
+_traffic_thread = None
+_traffic_lock = threading.Lock()
+_traffic_state = {"active": False, "rps": 0, "strategy": "ai_powered"}
 
 def _cached_fetch(url: str, default=None):
-    """Fetch with a short 1-second manual cache to avoid duplicate calls
-    within the same render while still delivering fresh data every reload."""
-    now = time.time()
-    if url in _fetch_cache:
-        cached_time, cached_data = _fetch_cache[url]
-        if now - cached_time < CACHE_TTL:
-            return cached_data
+    """Direct API fetch with timeout and graceful degradation.
+    No caching — every call hits the service for truly live data."""
     try:
         response = requests.get(url, timeout=REQUEST_TIMEOUT)
         if response.status_code == 200:
-            data = response.json()
-            _fetch_cache[url] = (now, data)
-            return data
+            return response.json()
     except Exception:
         pass
     return default
 
 
-def safe_api_call(func, default=None, cache_key=None):
+def safe_api_call(func, default=None):
     """Wrap API calls with timeout and graceful degradation."""
     try:
         result = func()
@@ -69,7 +62,10 @@ def fetch_servers():
 
 def fetch_gateway_stats():
     """Fetch gateway routing statistics."""
-    return _cached_fetch(f"{GATEWAY_URL}/stats", default=None)
+    return _cached_fetch(
+        f"{GATEWAY_URL}/stats",
+        default={"total_requests": 0, "strategy_distribution": {}, "servers": {}}
+    )
 
 
 def fetch_container_metrics():
@@ -310,51 +306,65 @@ def show_toast(message: str, icon: str = "✅"):
     st.toast(f"{icon} {message}", icon=None)
 
 
-# Traffic generator - uses standalone HTTP controller service
-_controller_pid = None
+# Traffic generator state
+def _traffic_generator_loop():
+    """Background thread that sends load to the gateway.
+    Uses module-level _traffic_state so it survives page reloads."""
+    while True:
+        with _traffic_lock:
+            if not _traffic_state["active"]:
+                break
+            strategy = _traffic_state["strategy"]
+            rps = _traffic_state["rps"]
+        interval = 1.0 / max(rps, 1)
+        try:
+            requests.get(
+                f"{GATEWAY_URL}/generate-load?strategy={strategy}",
+                timeout=2
+            )
+        except Exception:
+            pass
+        time.sleep(interval)
+
 
 def start_traffic_generator(rps: int, strategy: str):
-    """Start traffic generation via HTTP API to standalone controller."""
-    try:
-        # Start controller if not running
-        import subprocess
-        global _controller_pid
-        if _controller_pid is None:
-            try:
-                proc = subprocess.Popen(
-                    [sys.executable, "/app/traffic_controller.py", "8502"],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    start_new_session=True
-                )
-                _controller_pid = proc.pid
-                time.sleep(0.5)
-            except:
-                pass
+    """Start traffic generation in a background thread."""
+    global _traffic_thread
+    # Stop any existing traffic first
+    stop_traffic_generator()
+    time.sleep(0.2)
 
-        # Call HTTP API to start traffic
-        requests.get(f"http://localhost:8502/start?rps={rps}&strategy={strategy}", timeout=2)
-        st.session_state['traffic_running'] = True
-        st.session_state['traffic_rps'] = rps
-    except Exception:
-        pass
+    with _traffic_lock:
+        _traffic_state["active"] = True
+        _traffic_state["rps"] = rps
+        _traffic_state["strategy"] = strategy
+
+    thread = threading.Thread(target=_traffic_generator_loop, daemon=True)
+    thread.start()
+    _traffic_thread = thread
+
+    # Sync to session state so UI can read it
+    st.session_state['traffic_running'] = True
+    st.session_state['traffic_rps'] = rps
+
 
 def stop_traffic_generator():
     """Stop traffic generation."""
-    try:
-        requests.get(f"http://localhost:8502/stop", timeout=2)
-    except:
-        pass
+    global _traffic_thread
+    with _traffic_lock:
+        _traffic_state["active"] = False
+    _traffic_thread = None
     st.session_state['traffic_running'] = False
     st.session_state['traffic_rps'] = 0
 
 
 def update_traffic_strategy(strategy: str):
     """Update routing strategy on the running traffic generator."""
-    try:
-        requests.get(f"http://localhost:8502/strategy?strategy={strategy}", timeout=2)
-    except:
-        pass
+    with _traffic_lock:
+        _traffic_state["strategy"] = strategy
+    # Restart with new strategy if currently running
+    if _traffic_state["active"]:
+        start_traffic_generator(_traffic_state["rps"], strategy)
 
 
 # ============================================
