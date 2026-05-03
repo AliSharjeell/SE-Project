@@ -96,6 +96,12 @@ def fetch_anomalies():
     return _cached_fetch(f"{ML_SERVICE_URL}/anomalies", default={"anomalies": {}, "detector_fitted": False})
 
 
+# Auto-refresh the entire page so charts/metrics update in real time
+st.markdown(
+    f'<meta http-equiv="refresh" content="{st.session_state["refresh_interval"]}">',
+    unsafe_allow_html=True
+)
+
 # CSS Styles
 st.markdown("""
 <style>
@@ -216,6 +222,8 @@ if 'perf_history' not in st.session_state:
     st.session_state['perf_history'] = []
 if 'last_history_update' not in st.session_state:
     st.session_state['last_history_update'] = 0
+if 'refresh_interval' not in st.session_state:
+    st.session_state['refresh_interval'] = 3
 
 
 def set_traffic(pattern: str, intensity: int):
@@ -986,6 +994,21 @@ with st.sidebar:
         chart_points = st.slider("Chart data points", 10, 100, 50)
 
         st.markdown("---")
+        st.markdown("#### Auto-Refresh")
+
+        refresh_interval = st.slider(
+            "Page refresh interval (seconds)",
+            min_value=1,
+            max_value=10,
+            value=st.session_state['refresh_interval'],
+            step=1,
+            help="How often the dashboard reloads to fetch fresh data"
+        )
+        if refresh_interval != st.session_state['refresh_interval']:
+            st.session_state['refresh_interval'] = refresh_interval
+            st.rerun()
+
+        st.markdown("---")
 
         st.caption("💡 Data refreshes automatically via caching")
         st.markdown("#### Alert Thresholds")
@@ -1065,5 +1088,5 @@ else:
     with st.expander("System Audit Log", expanded=False):
         st.info("No system events recorded yet. Events will appear as you interact with the system.")
 
-# Note: Data refreshes automatically via @st.cache_data(ttl=...) decorators
-# No manual sleep/rerun needed - this prevents UI freezing
+# Dashboard auto-refreshes every N seconds via HTML meta refresh tag.
+# The cache ensures API calls are deduplicated within the TTL window.
