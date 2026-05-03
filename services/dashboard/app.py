@@ -1025,10 +1025,10 @@ with st.sidebar:
 
         refresh_interval = st.slider(
             "Refresh interval (seconds)",
-            min_value=5,
+            min_value=1,
             max_value=60,
             value=st.session_state['refresh_interval'],
-            step=5,
+            step=1,
             help="How long to wait between reloads (only used when auto-refresh is on)"
         )
         if refresh_interval != st.session_state['refresh_interval']:
