@@ -33,7 +33,7 @@ REQUEST_TIMEOUT = 1.5
 CACHE_DURATION = 5
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def _cached_fetch(url: str, default=None):
     """Cached API fetch with timeout and graceful degradation."""
     try:
@@ -54,43 +54,43 @@ def safe_api_call(func, default=None, cache_key=None):
         return default
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def fetch_servers():
     """Cached fetch for servers."""
     return _cached_fetch(f"{GATEWAY_URL}/servers", default=[])
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def fetch_gateway_stats():
     """Cached fetch for gateway stats."""
     return _cached_fetch(f"{GATEWAY_URL}/stats", default=None)
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def fetch_container_metrics():
     """Cached fetch for container metrics."""
     return _cached_fetch(f"{ORCHESTRATOR_URL}/api/metrics", default={"metrics": {}, "source": "unavailable"})
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def fetch_orchestrator_status():
     """Cached fetch for orchestrator status."""
     return _cached_fetch(f"{ORCHESTRATOR_URL}/api/status", default=None)
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def fetch_audit_events():
     """Cached fetch for audit events."""
     return _cached_fetch(f"{ORCHESTRATOR_URL}/api/events?limit=10", default={"events": [], "total": 0})
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def fetch_health_scores():
     """Cached fetch for ML health scores."""
     return _cached_fetch(f"{ML_SERVICE_URL}/scores", default={"scores": {}})
 
 
-@st.cache_data(ttl=5)
+@st.cache_data(ttl=5, show_spinner=False)
 def fetch_anomalies():
     """Cached fetch for ML anomaly detection."""
     return _cached_fetch(f"{ML_SERVICE_URL}/anomalies", default={"anomalies": {}, "detector_fitted": False})
@@ -106,15 +106,36 @@ if 'perf_history' not in st.session_state:
 if 'last_history_update' not in st.session_state:
     st.session_state['last_history_update'] = 0
 if 'refresh_interval' not in st.session_state:
-    st.session_state['refresh_interval'] = 3
+    st.session_state['refresh_interval'] = 10
 if 'sidebar_tab' not in st.session_state:
     st.session_state['sidebar_tab'] = 'manual'
+if 'auto_refresh' not in st.session_state:
+    st.session_state['auto_refresh'] = True
 
-# Auto-refresh the entire page so charts/metrics update in real time
-st.markdown(
-    f'<meta http-equiv="refresh" content="{st.session_state["refresh_interval"]}">',
-    unsafe_allow_html=True
-)
+# Auto-refresh via JavaScript that waits for page load before starting timer.
+# This prevents the reload-loop caused by <meta http-equiv="refresh"> which
+# fires while Streamlit is still executing the Python script.
+if st.session_state['auto_refresh']:
+    st.markdown(
+        f"""
+        <script>
+        (function() {{
+            var intervalSec = {st.session_state['refresh_interval']};
+            function scheduleReload() {{
+                setTimeout(function() {{
+                    window.location.reload();
+                }}, intervalSec * 1000);
+            }}
+            if (document.readyState === 'complete') {{
+                scheduleReload();
+            }} else {{
+                window.addEventListener('load', scheduleReload);
+            }}
+        }})();
+        </script>
+        """,
+        unsafe_allow_html=True
+    )
 
 # CSS Styles
 st.markdown("""
@@ -993,13 +1014,22 @@ with st.sidebar:
         st.markdown("---")
         st.markdown("#### Auto-Refresh")
 
+        auto_refresh = st.checkbox(
+            "Enable auto-refresh",
+            value=st.session_state['auto_refresh'],
+            help="Reload the page automatically to update charts and metrics"
+        )
+        if auto_refresh != st.session_state['auto_refresh']:
+            st.session_state['auto_refresh'] = auto_refresh
+            st.rerun()
+
         refresh_interval = st.slider(
-            "Page refresh interval (seconds)",
-            min_value=1,
-            max_value=10,
+            "Refresh interval (seconds)",
+            min_value=5,
+            max_value=60,
             value=st.session_state['refresh_interval'],
-            step=1,
-            help="How often the dashboard reloads to fetch fresh data"
+            step=5,
+            help="How long to wait between reloads (only used when auto-refresh is on)"
         )
         if refresh_interval != st.session_state['refresh_interval']:
             st.session_state['refresh_interval'] = refresh_interval
