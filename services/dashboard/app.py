@@ -1022,6 +1022,17 @@ with st.sidebar:
         if st.session_state.get('last_chaos'):
             st.error(f"Last chaos: {st.session_state['last_chaos']}")
 
+        st.markdown("---")
+        st.markdown("#### Chaos Engineering")
+        st.markdown('<p style="font-size: 0.75rem; color: var(--text-secondary);">Inject failure to test system resilience</p>', unsafe_allow_html=True)
+        if st.button("Degrade Random Server", use_container_width=True, key="chaos_manual", type="primary"):
+            result = inject_chaos()
+            if result and result.get('success'):
+                show_toast(f"Server {result.get('container_killed')} degraded!", "💀")
+                st.session_state['last_chaos'] = result.get('container_killed')
+            else:
+                show_toast("Chaos injection triggered (demo mode)", "⚡")
+
     # === SETTINGS TAB ===
     else:
         st.markdown("#### Display Settings")
