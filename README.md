@@ -651,6 +651,23 @@ For engineers who want fine-grained control:
 
 ---
 
+## 📄 Software Requirements Specification (SRS)
+
+This project includes a formal SRS document following IEEE 29148 standards.
+
+| Document | Description |
+|----------|-------------|
+| `docs/SRS_IEEE_29148.md` | Markdown version of the SRS document |
+| `docs/SRS_IEEE_SE_project.pdf` | PDF version for submission |
+
+**Contents of the SRS:**
+- Introduction (Purpose, Scope, Definitions)
+- Overall Description (Product Perspective, User Classes)
+- Specific Requirements (Functional, Non-Functional)
+- Supporting Information (Appendices, References)
+
+---
+
 ## License
 
 Academic Project - SE Department
