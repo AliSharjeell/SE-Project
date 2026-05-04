@@ -276,6 +276,18 @@ def inject_chaos():
     return None
 
 
+def recover_system():
+    """Clear demo chaos/degradation state."""
+    try:
+        response = requests.post(
+            f"{ORCHESTRATOR_URL}/api/recover",
+            timeout=REQUEST_TIMEOUT
+        )
+        return response.status_code == 200
+    except:
+        return False
+
+
 def show_toast(message: str, icon: str = "✅"):
     """Display toast notification using st.success/info with timestamp."""
     st.toast(f"{icon} {message}", icon=None)
@@ -372,13 +384,19 @@ server_stats = stats.get('servers', {})
 total_requests_all = stats.get('total_requests', 0)
 active_servers = len([s for s in server_stats.values() if s.get('healthy', True)]) if server_stats else len(servers)
 
-# Latency: average of last health-check latencies from ML metrics
+# Latency: weighted average of actual gateway timings.
 metrics_dict = container_metrics.get('metrics', {}) if container_metrics else {}
-avg_lat = 45  # baseline
-if metrics_dict:
-    lat_values = [v for v in metrics_dict.values() if isinstance(v, (int, float))]
-    if lat_values:
-        avg_lat = int(sum(lat_values) / len(lat_values))
+avg_lat = 45  # baseline until requests are routed
+latency_weight = 0
+latency_total = 0.0
+for sdata in server_stats.values():
+    reqs = sdata.get('total_requests', 0)
+    latency = sdata.get('avg_latency_ms', 0)
+    if reqs and latency:
+        latency_weight += reqs
+        latency_total += latency * reqs
+if latency_weight:
+    avg_lat = int(latency_total / latency_weight)
 
 throughput = total_requests_all
 
@@ -868,15 +886,16 @@ with st.sidebar:
             st.session_state.current_scenario = 'ddos'
             if set_traffic("burst", 10000):
                 start_traffic_generator(10000, current_routing)
-                show_toast("DDoS: 10,000 RPS + chaos injection", "⚠️")
+                show_toast("DDoS: 10,000 RPS + backend degradation", "⚠️")
             # Chaos injection
             chaos_result = inject_chaos()
             if chaos_result and chaos_result.get('success'):
-                show_toast(f"Container {chaos_result.get('container_killed')} killed!", "💥")
+                show_toast(f"Backend {chaos_result.get('container_killed')} degraded!", "💥")
 
         if st.button("🔄 Normal Ops", use_container_width=True, key="normal_preset",
                      type="primary" if st.session_state.current_scenario == 'normal' else "secondary"):
             stop_traffic_generator()
+            recover_system()
             st.session_state.current_scenario = 'normal'
             if set_traffic("constant", 50):
                 show_toast("Normal operations - 50 RPS steady")
@@ -950,10 +969,10 @@ with st.sidebar:
 
         st.markdown("---")
         st.markdown("#### Chaos Engineering")
-        if st.button("Kill Random Server", use_container_width=True, key="chaos_sidebar", type="primary"):
+        if st.button("Degrade Random Server", use_container_width=True, key="chaos_sidebar", type="primary"):
             result = inject_chaos()
             if result and result.get('success'):
-                show_toast(f"Server {result.get('container_killed')} terminated!", "💀")
+                show_toast(f"Server {result.get('container_killed')} degraded!", "💀")
                 st.session_state['last_chaos'] = result.get('container_killed')
             else:
                 show_toast("Chaos injection triggered (demo mode)", "⚡")

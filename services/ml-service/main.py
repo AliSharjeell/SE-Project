@@ -80,13 +80,18 @@ def check_backend_health(url: str) -> Optional[Dict]:
         start = time.time()
         response = requests.get(f"{url}/health", timeout=1)
         latency = (time.time() - start) * 1000
+        try:
+            body = response.json()
+        except Exception:
+            body = {}
         return {
             "healthy": response.status_code == 200,
             "latency_ms": latency,
-            "status_code": response.status_code
+            "status_code": response.status_code,
+            "degraded": bool(body.get("degraded", False))
         }
     except:
-        return {"healthy": False, "latency_ms": 9999, "status_code": 503}
+        return {"healthy": False, "latency_ms": 9999, "status_code": 503, "degraded": False}
 
 
 def collect_all_metrics() -> Dict[str, Dict]:
@@ -123,6 +128,7 @@ def collect_all_metrics() -> Dict[str, Dict]:
             "latency_ms": health_check.get("latency_ms", 100),
             "healthy": health_check.get("healthy", False),
             "status_code": health_check.get("status_code", 503),
+            "degraded": health_check.get("degraded", False),
         }
 
         all_metrics[url] = metrics
@@ -138,6 +144,8 @@ def predict_health_score(metrics: Dict) -> float:
     """
     if not metrics.get("healthy", False):
         return 0.05
+    if metrics.get("degraded", False):
+        return 0.12
 
     # Normalize each feature to 0..1 (0 = worst, 1 = best)
     cpu = metrics.get("cpu_percent", 50)

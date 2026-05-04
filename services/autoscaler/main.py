@@ -8,6 +8,7 @@ based on CPU utilization thresholds.
 import time
 import threading
 import statistics
+import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -16,14 +17,14 @@ import requests
 from flask import Flask, jsonify
 
 # Configuration
-GATEWAY_URL = "http://gateway:8000"
-BACKEND_CONTAINER_PREFIX = "backend-"
-METRICS_INTERVAL = 10  # seconds
-SCALE_UP_THRESHOLD = 75.0  # CPU %
-SCALE_DOWN_THRESHOLD = 25.0  # CPU %
-MIN_SERVERS = 1
-MAX_SERVERS = 10
-COOLDOWN_SECONDS = 30
+GATEWAY_URL = os.environ.get("GATEWAY_URL", "http://gateway:8000")
+BACKEND_CONTAINER_PREFIX = os.environ.get("BACKEND_BASE_NAME", "backend-")
+METRICS_INTERVAL = int(os.environ.get("METRICS_INTERVAL", "10"))  # seconds
+SCALE_UP_THRESHOLD = float(os.environ.get("SCALE_UP_THRESHOLD", "75.0"))  # CPU %
+SCALE_DOWN_THRESHOLD = float(os.environ.get("SCALE_DOWN_THRESHOLD", "25.0"))  # CPU %
+MIN_SERVERS = int(os.environ.get("MIN_SERVERS", "3"))
+MAX_SERVERS = int(os.environ.get("MAX_SERVERS", "10"))
+COOLDOWN_SECONDS = int(os.environ.get("COOLDOWN_SECONDS", "30"))
 
 # Initialize Flask app
 app = Flask(__name__)

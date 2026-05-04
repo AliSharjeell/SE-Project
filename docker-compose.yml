@@ -7,6 +7,7 @@ services:
     image: backend:latest
     container_name: backend-1
     hostname: backend-1
+    restart: unless-stopped
     ports:
       - "8001:8000"
     environment:
@@ -29,6 +30,7 @@ services:
     image: backend:latest
     container_name: backend-2
     hostname: backend-2
+    restart: unless-stopped
     ports:
       - "8002:8000"
     environment:
@@ -51,6 +53,7 @@ services:
     image: backend:latest
     container_name: backend-3
     hostname: backend-3
+    restart: unless-stopped
     ports:
       - "8003:8000"
     environment:
@@ -120,7 +123,7 @@ services:
     environment:
       - GATEWAY_URL=http://gateway:8000
       - BACKEND_BASE_NAME=backend-
-      - MIN_SERVERS=1
+      - MIN_SERVERS=3
       - MAX_SERVERS=10
       - SCALE_UP_THRESHOLD=70
       - SCALE_DOWN_THRESHOLD=30

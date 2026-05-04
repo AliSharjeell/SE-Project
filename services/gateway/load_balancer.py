@@ -22,6 +22,7 @@ class Server:
     total_requests: int = 0
     successful_requests: int = 0
     failed_requests: int = 0
+    total_latency_ms: float = 0.0
     last_selected: float = field(default_factory=time.time)
     health_score: float = 1.0  # Used by AI-powered strategy (0.0 to 1.0)
 
@@ -163,6 +164,10 @@ class LoadBalancer:
         self._stats.ai_powered += 1
         self._total_requests += 1
 
+        preferred_servers = [s for s in healthy_servers if s.health_score >= 0.3]
+        if preferred_servers:
+            healthy_servers = preferred_servers
+
         # Normalize health scores for weighted selection
         total_score = sum(s.health_score for s in healthy_servers)
         if total_score <= 0:
@@ -213,13 +218,14 @@ class LoadBalancer:
                     server.active_connections = max(0, server.active_connections - 1)
                     break
 
-    def mark_unhealthy(self, url: str) -> None:
+    def mark_unhealthy(self, url: str, record_failure: bool = True) -> None:
         """Mark a server as unhealthy."""
         with self._lock:
             for server in self._servers.values():
                 if server.url == url:
                     server.healthy = False
-                    server.failed_requests += 1
+                    if record_failure:
+                        server.failed_requests += 1
                     break
 
     def mark_healthy(self, url: str) -> None:
@@ -241,12 +247,13 @@ class LoadBalancer:
                     server.health_score = max(0.0, min(1.0, score))
                     break
 
-    def record_request(self, url: str, status_code: int) -> None:
+    def record_request(self, url: str, status_code: int, latency_ms: float = 0.0) -> None:
         """Record request statistics for a server."""
         with self._lock:
             for server in self._servers.values():
                 if server.url == url:
                     server.total_requests += 1
+                    server.total_latency_ms += max(0.0, latency_ms)
                     if 200 <= status_code < 400:
                         server.successful_requests += 1
                     else:
@@ -272,6 +279,7 @@ class LoadBalancer:
                         "total_requests": server.total_requests,
                         "successful_requests": server.successful_requests,
                         "failed_requests": server.failed_requests,
+                        "avg_latency_ms": round(server.total_latency_ms / server.total_requests, 2) if server.total_requests else 0.0,
                         "health_score": server.health_score,
                         "last_selected": server.last_selected,
                     }

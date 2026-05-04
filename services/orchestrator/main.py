@@ -6,14 +6,19 @@ Provides control endpoints for the Live Demo Control Panel.
 
 import random
 import threading
+import time
 from typing import Optional
 from datetime import datetime
 
 import docker
+import httpx
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 app = FastAPI(title="Orchestrator - Live Demo Control", version="1.0.0")
+
+BACKEND_NAMES = ["backend-1", "backend-2", "backend-3"]
+BACKEND_URLS = {name: f"http://{name}:8000" for name in BACKEND_NAMES}
 
 # Docker client - lazy initialization
 _docker_client = None
@@ -131,6 +136,8 @@ state = {
     "traffic_intensity": 100,
     "routing_strategy": "ai_powered",
     "last_chaos": None,
+    "degraded_backend": None,
+    "degraded_until": 0.0,
 }
 
 # Event log (last 50 events)
@@ -149,6 +156,42 @@ def log_event(event_type: str, message: str, details: dict = None):
     event_log.append(entry)
     if len(event_log) > MAX_EVENTS:
         event_log.pop(0)
+
+def get_active_degraded_backend() -> Optional[str]:
+    """Return the active degraded backend, clearing expired demo state."""
+    if state.get("degraded_backend") and time.time() < state.get("degraded_until", 0):
+        return state["degraded_backend"]
+    state["degraded_backend"] = None
+    state["degraded_until"] = 0.0
+    return None
+
+async def degrade_backend(name: str, duration_seconds: int = 120) -> bool:
+    """Ask a backend to slow itself down for a visible routing demo."""
+    url = BACKEND_URLS.get(name)
+    if not url:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.post(
+                f"{url}/chaos/degrade",
+                json={"duration_seconds": duration_seconds}
+            )
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Backend degradation failed for {name}: {e}")
+        return False
+
+async def recover_backend(name: str) -> bool:
+    url = BACKEND_URLS.get(name)
+    if not url:
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.post(f"{url}/chaos/recover")
+        return response.status_code == 200
+    except Exception as e:
+        print(f"Backend recovery failed for {name}: {e}")
+        return False
 
 
 class TrafficConfig(BaseModel):
@@ -169,11 +212,13 @@ class ChaosResult(BaseModel):
 @app.get("/api/status")
 async def get_status():
     """Get current system status."""
+    degraded_backend = get_active_degraded_backend()
     return {
         "traffic_pattern": state["traffic_pattern"],
         "traffic_intensity": state["traffic_intensity"],
         "routing_strategy": state["routing_strategy"],
         "last_chaos": state["last_chaos"],
+        "degraded_backend": degraded_backend,
         "timestamp": datetime.now().isoformat(),
     }
 
@@ -228,69 +273,42 @@ async def set_strategy(config: StrategyConfig):
 
 @app.post("/api/inject_chaos", response_model=ChaosResult)
 async def inject_chaos():
-    """Kill a random backend container to test system recovery."""
-    import random
-    import subprocess
+    """Degrade a random backend so AI routing has a visible advantage."""
+    container_name = random.choice(BACKEND_NAMES)
+    duration_seconds = 120
 
-    # Try to list and kill backend containers
-    container_names = list_backend_containers()
-
-    if not container_names:
-        # No Docker access - simulate chaos for demo purposes
-        simulated_containers = ["backend-2", "backend-3", "backend-4"]
-        container_name = random.choice(simulated_containers)
-        state["last_chaos"] = {
-            "container": container_name,
-            "timestamp": datetime.now().isoformat(),
-            "simulated": True
-        }
-        log_event("chaos_injection", f"[SIMULATED] Chaos injected on {container_name}", {"container": container_name, "simulated": True})
-
-        return ChaosResult(
-            success=True,
-            container_killed=container_name,
-            message=f"Chaos injected on {container_name} (simulated - Docker not accessible from container)"
-        )
-
-    if len(container_names) <= 1:
+    if not await degrade_backend(container_name, duration_seconds):
         return ChaosResult(
             success=False,
-            message="Cannot kill the last remaining backend container"
-        )
-
-    # Select a random container to kill (exclude the first one)
-    victim_name = random.choice(container_names[1:]) if len(container_names) > 1 else container_names[0]
-
-    # Try to kill the container
-    if kill_container(victim_name):
-        container_name = victim_name
-    else:
-        # If kill fails, simulate the event
-        container_name = victim_name
-        state["last_chaos"] = {
-            "container": container_name,
-            "timestamp": datetime.now().isoformat(),
-            "simulated": True
-        }
-        log_event("chaos_injection", f"[SIMULATED] Chaos injected on {container_name}", {"container": container_name, "simulated": True})
-
-        return ChaosResult(
-            success=True,
             container_killed=container_name,
-            message=f"Chaos injected on {container_name} (simulated)"
+            message=f"Could not degrade {container_name}"
         )
 
+    state["degraded_backend"] = container_name
+    state["degraded_until"] = time.time() + duration_seconds
     state["last_chaos"] = {
         "container": container_name,
         "timestamp": datetime.now().isoformat(),
+        "mode": "degraded"
     }
-    log_event("chaos_injection", f"Container {container_name} terminated for chaos testing", {"container": container_name})
+    log_event("chaos_injection", f"Backend {container_name} degraded for routing demo", {"container": container_name, "mode": "degraded"})
 
     return ChaosResult(
         success=True,
         container_killed=container_name,
-        message=f"Container {container_name} killed. System should recover by routing to healthy servers."
+        message=f"Backend {container_name} degraded for {duration_seconds}s. AI routing should prefer healthier servers."
     )
+
+
+@app.post("/api/recover")
+async def recover_all():
+    """Recover all degraded backend demo state."""
+    results = {name: await recover_backend(name) for name in BACKEND_NAMES}
+    state["degraded_backend"] = None
+    state["degraded_until"] = 0.0
+    state["last_chaos"] = None
+    log_event("recovery", "All backend degradation cleared", {"results": results})
+    return {"success": all(results.values()), "results": results}
 
 
 @app.get("/health")
@@ -307,6 +325,7 @@ async def get_metrics():
     """
     traffic_intensity = state.get("traffic_intensity", 100)
     strategy = state.get("routing_strategy", "ai_powered")
+    degraded_backend = get_active_degraded_backend()
 
     metrics = {}
     base_load = min(traffic_intensity / 100, 95)  # Cap at 95%
@@ -326,6 +345,9 @@ async def get_metrics():
             # Load-balanced modes: distribute load across all servers
             cpu = max(5, min(98, base_load + variation))
 
+        if server_name == degraded_backend:
+            cpu = random.uniform(88, 98)
+
         metrics[server_name] = round(cpu, 1)
 
     return {
@@ -333,6 +355,7 @@ async def get_metrics():
         "source": "simulated_from_traffic",
         "traffic_intensity": traffic_intensity,
         "routing_strategy": strategy,
+        "degraded_backend": degraded_backend,
     }
 
 

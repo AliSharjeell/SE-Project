@@ -28,11 +28,25 @@ def _sync_health_scores():
     except Exception as e:
         print(f"[Gateway] Health sync failed: {e}")
 
+def _check_backend_health():
+    """Refresh backend availability so recovered containers can receive traffic."""
+    for server in load_balancer.get_server_info():
+        url = server["url"]
+        try:
+            response = requests.get(f"{url}/health", timeout=2)
+            if response.status_code == 200:
+                load_balancer.mark_healthy(url)
+            else:
+                load_balancer.mark_unhealthy(url, record_failure=False)
+        except Exception:
+            load_balancer.mark_unhealthy(url, record_failure=False)
+
 def _schedule_health_sync():
-    """Periodically sync health scores from ML service."""
+    """Periodically sync health scores and backend availability."""
     while True:
+        _check_backend_health()
         _sync_health_scores()
-        time.sleep(10)  # Sync every 10 seconds
+        time.sleep(3)  # Keep demo feedback quick enough to see live.
 
 
 class RouteRequest(BaseModel):
@@ -118,15 +132,17 @@ async def route_request(request: RouteRequest):
         load_balancer.increment_connections(selected_server)
 
         async with httpx.AsyncClient(timeout=30.0) as client:
+            start = time.time()
             httpx_response = await client.request(
                 method=request.method,
                 url=target_url,
                 headers=request.headers,
                 json=request.body if request.body else None,
             )
+            latency_ms = (time.time() - start) * 1000
 
         load_balancer.decrement_connections(selected_server)
-        load_balancer.record_request(selected_server, httpx_response.status_code)
+        load_balancer.record_request(selected_server, httpx_response.status_code, latency_ms)
 
         return RouteResponse(
             server=selected_server,
@@ -215,13 +231,15 @@ async def generate_load(strategy: str = "ai_powered"):
         load_balancer.increment_connections(selected_server)
 
         async with httpx.AsyncClient(timeout=5.0) as client:
+            start = time.time()
             response = await client.post(
                 f"{selected_server}/process",
                 json={"request_id": "load-test", "payload": "x"}
             )
+            latency_ms = (time.time() - start) * 1000
 
         load_balancer.decrement_connections(selected_server)
-        load_balancer.record_request(selected_server, response.status_code)
+        load_balancer.record_request(selected_server, response.status_code, latency_ms)
 
         return {
             "status": "ok",
